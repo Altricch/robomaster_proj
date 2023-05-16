@@ -17,7 +17,8 @@ In T3 run the following commands to bridge:
 
 `cd /dev_ws/src`
 
-`ros2 launch robomaster_ros s1.launch name:="name" serial_number:="name"`
+ros2 launch robomaster_ros s1.launch name:=RM0001 tof_0:=true tof_1:=true tof_2:=true tof_3:=true
+
 
 You can get the name of the robomaster inside Coppelia by double-clicking as shown in the first image and copy the third parameter of the function `simRobomaster.create_s1()` as the second figure shows.
 
