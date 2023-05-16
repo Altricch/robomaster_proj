@@ -4,6 +4,7 @@ import tf_transformations
 from std_msgs.msg import String
 
 import numpy as np
+import math
 
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
@@ -12,9 +13,8 @@ from sensor_msgs.msg import Range
 import sys
 
 
-w_discover = False
-room_discvoer = False
-object_discover = False
+
+
 
 class RobomasterNode(Node):
     def __init__(self):
@@ -25,6 +25,20 @@ class RobomasterNode(Node):
         self.range_r = -1
         self.range_b = -1
         
+        self.w_discover = False
+        self.w_turning = False
+        self.w_finished = False
+        self.room_discvoer = False
+        self.object_discover = False
+        self.right_history = []
+        self.min_rdist = 100
+        self.last_fron = 100
+        self.last_righ = 100
+
+        self.chassi_x = 0.10078
+        self.chassi_y = 0.21501
+
+
         # Create attributes to store odometry pose and velocity
         self.odom_pose = None
         self.odom_velocity = None
@@ -39,11 +53,11 @@ class RobomasterNode(Node):
         # Get sensor data
         self.proximity_f = self.create_subscription(Range, '/RM0001/range_0', self.prox_callback_f, 10)
         self.proximity_l = self.create_subscription(Range, '/RM0001/range_1', self.prox_callback_l, 10)
-        self.proximity_r = self.create_subscription(Range, '/RM0001/range_2', self.prox_callback_r, 10)
-        self.proximity_b = self.create_subscription(Range, '/RM0001/range_3', self.prox_callback_b, 10)
+        self.proximity_b = self.create_subscription(Range, '/RM0001/range_2', self.prox_callback_b, 10)
+        self.proximity_r = self.create_subscription(Range, '/RM0001/range_3', self.prox_callback_r, 10)
 
 
-        self.timer = self.create_timer(1, self.timer_callback)
+        self.timer = self.create_timer(1, self.discover_wall)
         self.timer_counter = 0
         
         # NOTE: we're using relative names to specify the topics (i.e., without a 
@@ -82,6 +96,11 @@ class RobomasterNode(Node):
     def prox_callback_r(self, msg):
         self.range_r = msg.range
 
+        if len(self.right_history) > 10:
+            self.right_history = self.right_history[8:]
+        
+        self.right_history.append(self.range_r)
+
     def prox_callback_b(self, msg):
         self.range_b = msg.range
     
@@ -103,6 +122,86 @@ class RobomasterNode(Node):
         
         return pose2
 
+    # Turns right until perpendicular to wall
+    def turn_right(self):
+        perpendicular = False
+        min_r_range = 1000
+
+        self.get_logger().info(
+                    "Now in Right Turn ",
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+
+        while not perpendicular:
+
+            self.get_logger().info(
+                    "Range back: {:.2f}".format(self.range_b),
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+
+            cmd_vel = Twist()
+            cmd_vel.linear.x  = 0.1
+
+            
+
+            if min_r_range > self.range_r:
+                min_r_range = self.range_r 
+        return 
+
+    def discover_wall(self):
+
+
+        self.get_logger().info(
+                    "DISCOVER WALL",
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+        
+        cmd_vel = Twist() 
+
+        if self.last_fron > self.range_f:
+            self.last_fron = self.range_f
+
+        if self.last_righ > self.range_r:
+            self.last_righ = self.range_r
+
+        if not self.w_discover:
+            if self.range_f > 0.2 and not self.w_turning:
+                
+                cmd_vel.linear.x  = 0.2
+
+                self.get_logger().info(
+                    "Range front: {:.2f}".format(self.range_f),
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+
+                self.get_logger().info(
+                    "Range left: {:.2f}".format(self.range_l),
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+
+                self.get_logger().info(
+                    "Range right: {:.2f}".format(self.range_r),
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                )
+
+                self.get_logger().info(
+                    "Range back: {:.2f}".format(self.range_b),
+                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+                ) 
+            else:
+                self.w_turning = True
+
+                if not math.isclose(self.last_fron, self.last_righ, abs_tol=0.065): 
+                    cmd_vel.angular.z = 0.1
+                    self.get_logger().info(
+                        "Range front: {:.4f}, Range back {:.4f}".format(self.last_fron - self.chassi_x, self.last_righ - self.chassi_y),
+                        throttle_duration_sec=0.2 # Throttle logging frequency to max 2Hz
+                    ) 
+
+                else:
+                    cmd_vel.angular.z  = 0.0
+                    
+            self.vel_publisher.publish(cmd_vel)
 
     def timer_callback(self):
         
@@ -111,10 +210,10 @@ class RobomasterNode(Node):
         cmd_vel = Twist() 
         
         if self.timer_counter < t_circle // 2:
-            cmd_vel.linear.y  = 0.2 # [m/s]
+            cmd_vel.linear.x  = 0.2 # [m/s]
             cmd_vel.angular.z = 0.0 # [rad/s]
         else:
-            cmd_vel.linear.y  = 0.2 # [m/s]
+            cmd_vel.linear.x  = 0.2 # [m/s]
             cmd_vel.angular.z = -0.0 # [rad/s]bool
 
         self.timer_counter += 1
@@ -125,27 +224,27 @@ class RobomasterNode(Node):
         #     "in timed function, counter is: {:.2f})".format(self.timer_counter),
         #      throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
         # )
-
         self.get_logger().info(
             "Range front: {:.2f}".format(self.range_f),
-             throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
         )
 
         self.get_logger().info(
             "Range left: {:.2f}".format(self.range_l),
-             throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
         )
 
         self.get_logger().info(
             "Range right: {:.2f}".format(self.range_r),
-             throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
         )
 
         self.get_logger().info(
             "Range back: {:.2f}".format(self.range_b),
-             throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
         )
 
+        
         self.vel_publisher.publish(cmd_vel)
 
 
