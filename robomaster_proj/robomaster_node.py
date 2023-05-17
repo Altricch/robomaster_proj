@@ -163,31 +163,35 @@ class RobomasterNode(Node):
 
         if self.last_righ > self.range_r:
             self.last_righ = self.range_r
+        
+
+        self.get_logger().info(
+            "Range front: {:.2f}".format(self.range_f),
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+        )
+
+        self.get_logger().info(
+            "Range left: {:.2f}".format(self.range_l),
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+        )
+
+        self.get_logger().info(
+            "Range right: {:.2f}".format(self.range_r),
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+        )
+
+        self.get_logger().info(
+            "Range back: {:.2f}".format(self.range_b),
+            throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
+        ) 
+
 
         if not self.w_discover:
             if self.range_f > 0.2 and not self.w_turning:
                 
                 cmd_vel.linear.x  = 0.2
 
-                self.get_logger().info(
-                    "Range front: {:.2f}".format(self.range_f),
-                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
-                )
-
-                self.get_logger().info(
-                    "Range left: {:.2f}".format(self.range_l),
-                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
-                )
-
-                self.get_logger().info(
-                    "Range right: {:.2f}".format(self.range_r),
-                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
-                )
-
-                self.get_logger().info(
-                    "Range back: {:.2f}".format(self.range_b),
-                    throttle_duration_sec=0.5 # Throttle logging frequency to max 2Hz
-                ) 
+                
             else:
                 self.w_turning = True
 
