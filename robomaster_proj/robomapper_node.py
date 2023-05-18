@@ -33,6 +33,7 @@ class RobomasterNode(Node):
         # self.range_b = -1.0
         self.range_limit = 5.0 + 0.1
         self.scaling = 20 #10
+        self.speed_damper = 5.0
 
         self.initial_pose = None
         self.current_pose = None
@@ -47,9 +48,9 @@ class RobomasterNode(Node):
 
         # Key: state, Val: velocities [lin x, lin y, ang z]
         self.state_dict = {"scanning":[0.0, 0.0, 1.0], 
-                           "done": [ 0.0, 0.0, 0.0], 
-                           "map":[ 0.0 , 0.0, 0.0],
-                           "move: ": [ 0.0, 0.0, 0.0]} 
+                               "done":[ 0.0, 0.0, 0.0], 
+                                "map":[ 0.0 , 0.0, 0.0],
+                               "move":[ 0.0, 1.0, 0.0]} 
 
         
         self.odom_pose = None
@@ -80,6 +81,7 @@ class RobomasterNode(Node):
         cmd_vel = Twist()
         self.vel_publisher.publish(cmd_vel)
     
+
     def odom_callback(self, msg):
         self.odom_pose = msg.pose.pose
         self.odom_valocity = msg.twist.twist
@@ -154,7 +156,6 @@ class RobomasterNode(Node):
         cmd_vel = Twist() 
 
         if self.state == 'done':
-            cmd_vel.angular.z = 0.0
 
             if len(self.points) >= 2:
                 self.compute_all()
@@ -162,7 +163,7 @@ class RobomasterNode(Node):
                 print("ERROR, NOT ENOUGH POINTS")
 
         self.counter += 1
-        cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = (np.array(self.state_dict[self.state])/5)
+        cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(self.state_dict[self.state])/self.speed_damper
 
         self.vel_publisher.publish(cmd_vel)
 
@@ -255,15 +256,17 @@ class RobomasterNode(Node):
                 x,y =  point # inverted points to conforn to array logic
                 grid[y][x] -= 1
 
-        return grid
+        return grid.astype(int)
     
     # takes the cummulative grid and transforms it into an binary representation. 
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise. 
     # Lastly, we cap the cumulative probability for both states according to observations
     def pop_binary_grid(self, acc_grid, x0, y0, cap_wall = 2, cap_visited = -2):
-        binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
+        #binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
+        #binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # ﾂｯツシｼッシ'This is us
 
-        binary_grid[binary_grid.shape[0] - y0, x0] = 'シ' # This is us
+        binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
+        binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ' # ﾂｯツシｼッシ'This is us
 
         return binary_grid
     
@@ -277,11 +280,6 @@ class RobomasterNode(Node):
         _, ax = plt.subplots()
         ax.scatter(x0,y0, marker='D')
 
-        wall_points = np.array(wall_points)
-        wall_x = wall_points[:,0]
-        wall_y = wall_points[:,1]
-        ax.scatter(x = wall_x,y = wall_y, marker='.', color="red")
-
         visited_points = np.array(visited_points)
         visited_x = visited_points[:,0]
         visited_y = visited_points[:,1]
@@ -289,6 +287,11 @@ class RobomasterNode(Node):
         # for elem in visited_points:
         #     x,y = elem
         ax.scatter(x = visited_x,y = visited_y, marker='+', color="gray")
+
+        wall_points = np.array(wall_points)
+        wall_x = wall_points[:,0]
+        wall_y = wall_points[:,1]
+        ax.scatter(x = wall_x,y = wall_y, marker='.', color="red")
 
         # Offset points (put them in a square box)
         scaling = self.scaling
@@ -317,20 +320,25 @@ class RobomasterNode(Node):
         
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
-        print(binary_grid)
+
+        #print(binary_grid)
+        print(np.array2string(binary_grid, separator=' ', formatter={'str_kind': lambda x: x}))
 
         # check how many points are identified as wall
         coords = np.argwhere(binary_grid == 'x')
         print("wall coords amount:", len(coords))
         
         ax.set_title("map1")
+        
+        self.state = 'move'
+
         plt.show()
 
         
 
 
 def main():
-    np.set_printoptions(linewidth=100)
+    np.set_printoptions(linewidth=100, legacy="1.13")
     # Initialize the ROS client library
     rclpy.init(args=sys.argv)
     
