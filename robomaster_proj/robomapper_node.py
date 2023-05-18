@@ -101,7 +101,11 @@ class RobomasterNode(Node):
 
 
     def prox_callback_f(self, msg):
-        self.range_f = msg.range
+
+        self.range_f = 1.0 if msg.range == 10.0 else msg.range
+
+        #self.range_f = msg.range
+
     
     # def prox_callback_l(self, msg):
     #     self.range_l = msg.range
@@ -147,7 +151,7 @@ class RobomasterNode(Node):
                 self.points.append([self.range_f, self.current_pose[2]])
                 
             
-            if  abs(angle - self.previous_angle) > 180:
+            if  abs(angle - self.previous_angle) > 180 and self.counter > 500: #5 seconds minimum
                  self.spins +=1
                  self.state = "done"
                  cmd_vel.angular.z = 0.0
@@ -155,7 +159,7 @@ class RobomasterNode(Node):
             self.previous_angle = angle
         elif self.state == 'done':
             cmd_vel.angular.z = 0.0
-            
+
             if len(self.points) >= 2:
                 self.compute_points()
             else:
@@ -171,20 +175,34 @@ class RobomasterNode(Node):
     
     def compute_points(self):
         current_points = []
+        visited_points = []
 
-        x, y, t = self.initial_pose
+        x0, y0, t = self.initial_pose
 
         fig, ax = plt.subplots()
-        ax.scatter(x,y, marker='D')
+        ax.scatter(x0,y0, marker='D')
         min_x = 0
         max_x = 0
         min_y = 0
         max_y = 0 
+
+        
         for dist,theta in self.points:
-            x1 = x + dist * np.cos(theta)
-            y1 = y + dist * np.sin(theta)
+            x1 = x0 + dist * np.cos(theta)
+            y1 = y0 + dist * np.sin(theta)
 
             current_points.append([x1,y1])
+
+
+            # MIDDLE POINTS / VISITED COMPUTATION # 
+            map_len_const = 0.25 #0.25
+            step = map_len_const
+            while(step < dist):
+                x_mid = x0 + step * np.cos(theta)
+                y_mid = y0 + step * np.sin(theta)
+                visited_points.append([x_mid, y_mid])
+                step += map_len_const
+            #######################################
 
             if x1 > max_x:
                 max_x = round(x1,2)
@@ -198,7 +216,13 @@ class RobomasterNode(Node):
 
 
             print('x ' + str(round(x1,2)), 'y ' + str(round(y1,2)))
-            ax.scatter(x1,y1, marker='.')
+            ax.scatter(x1,y1, marker='.', color="red")
+
+
+        for elem in visited_points:
+            x,y = elem
+            ax.scatter(x,y, marker='+', color="gray")
+
         self.state = 'map'
 
         print("X min:" + str(min_x) + " | max:" + str(max_x))
@@ -244,26 +268,73 @@ class RobomasterNode(Node):
             if y == 10:
                 y = 9
 
-            offset_points.append([x,y])
+            offset_points.append((x,y))
+
+        ### INTERNAL
+
+        offset_internal_points = []
+        for point in visited_points:
+            x,y = point
+
+            # translate points into the positive quadrant
+            x += min_x
+            y += min_y 
+
+            # scale points into coordinate system
+            x *= scale_x
+            y *= scale_y
+
+            x = int(x)
+            y = int(y)
+
+            # TOBE FIXED LATER
+            if x == 10:
+                x = 9
+            if y == 10:
+                y = 9
+
+            offset_internal_points.append((x,y))
+
+        # DISCRETIZE INITIAL COORDS
+        x0 = int((x0 + min_x)*scale_x)
+        y0 = int((y0 + min_y)*scale_y)
         
         #print("new mapped points")
         #print(offset_points)
+
+        #TODO 
+        # Make offset discretized points a set
 
         grid = np.full((10,10), fill_value=0)
         for point in offset_points:
             x,y =  point # inverted points to conforn to array logic
             grid[y][x] += 1
 
+        internal_only = set(offset_internal_points).difference(set(offset_points))
+
+        for point in offset_internal_points:
+            if point in internal_only:
+                x,y =  point # inverted points to conforn to array logic
+                grid[y][x] -= 1
+        
+        #grid[y0,x0] = 'シ'
         corrected_grid = np.flip(grid, axis=0)
         print(corrected_grid)
 
-        blocked_grid = np.where(corrected_grid >= 2, 'x', ' ')
+        blocked_grid = np.where(corrected_grid >= 2, 'x', 0)
+
+        blocked_grid[y0,x0] = 'シ' #This is us
+
+        coords = np.argwhere(blocked_grid == 'x')
+        print("wall coords amount:", len(coords))
 
         print(blocked_grid)
+        #print(blocked_grid.transpose())
 
     
         ax.set_title("map1")
         plt.show()
+
 
 
     def plot_points(self, points):
