@@ -37,6 +37,8 @@ class RobomasterNode(Node):
 
         self.initial_pose = None
         self.current_pose = None
+        self.target_pose = None
+
         self.counter = 0
         self.range_f = -1.0
         self.distance_travelled = 0     
@@ -321,20 +323,182 @@ class RobomasterNode(Node):
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
 
-        #print(binary_grid)
-        print(np.array2string(binary_grid, separator=' ', formatter={'str_kind': lambda x: x}))
+        print(binary_grid)
+        #print(np.array2string(binary_grid, separator=' ', formatter={'str_kind': lambda x: x}))
 
         # check how many points are identified as wall
         coords = np.argwhere(binary_grid == 'x')
         print("wall coords amount:", len(coords))
         
-        ax.set_title("map1")
-        
-        self.state = 'move'
 
+        ### GETTING CLOSEST ####
+        print(binary_grid.shape)
+        nearest, walkable = select_route(binary_grid)
+        dest_x, dest_y = nearest
+        print("nearest and walkable options")
+        print(nearest, walkable)
+        #########################
+
+        #self.state = 'move'
+        ax.set_title("map1")
         plt.show()
 
+
+# Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
+def unseen_neighbors(binary):
+    unseen = np.where(binary == "0")
+    x, y = unseen 
+    plausible_pos = []
+    for elem in zip(x,y):
+        if candidate(binary, elem):
+            plausible_pos.append(elem)
+    #print("Plausible candidates are", plausible_pos)
+    return plausible_pos
+
+# Retrieves the element with min distance amongst all plausible candidates 
+def min_dist(plausible_cand, current_pos):
+    sx, sy = current_pos
+    nearest = None
+    dist = 100
+    for cand in plausible_cand:
+        fx, fy = cand
+        temp_dist = math.sqrt((fx-sx)**2 + (fy-sy)**2)
+        if temp_dist < dist:
+            dist = temp_dist
+            nearest = cand
         
+    return nearest
+
+# Checks whether a position is a candidate
+def candidate(binary, elem, max_x = 20, min_x = 0, max_y = 20, min_y = 0):
+    in_0_neihborhood = False
+    in_reach_neighborhood = False
+    
+    x, y = elem
+    
+    elems = []
+    # Border element 
+    if min_x < x < max_x - 1 and min_y < y < max_y - 1:
+        elems.append((x+1,y))
+        elems.append((x-1,y))
+        elems.append((x,y+1))
+        elems.append((x,y-1))
+        elems.append((x+1,y+1))
+        elems.append((x-1,y-1))
+        elems.append((x-1,y+1))
+        elems.append((x-1,y+1))
+        
+    if len(elems) == 0:
+        return False
+    
+    for el in elems:
+        x_t, y_t = el
+        if binary[x_t,y_t] == "0":
+            in_0_neihborhood = True
+        if binary[x_t,y_t] == ".":  
+            in_reach_neighborhood = True
+        
+        if in_0_neihborhood and in_reach_neighborhood:
+            return True
+            
+    return in_0_neihborhood and in_reach_neighborhood
+
+# either LT, UT, Diag, Hor
+def check_path(current_pos, target_pos, binary):
+    sx, sy = current_pos
+    fx, fy = target_pos
+    
+    csx = sx
+    csy = sy
+    
+    dx = np.sign(fx - sx)
+    dy = np.sign(fy - sy)    
+    
+    LT = True
+    UT = True
+    Diagonal = True
+    
+    # UTriangular
+    sx = csx
+    sy = csy
+    while sx != fx:
+        sx += dx
+        # CMD.Velangular.x
+        if binary[sx,sy] == "x":
+            UT = False
+            
+    if UT:
+        while sy != fy:
+            sy += dy
+            elem = binary[sx,sy]
+            if elem == "x":
+                UT = False
+            
+            
+    # LTriangular
+    sx = csx
+    sy = csy
+    while sy != fy:
+        sy += dy
+        elem = binary[sx,sy]
+        if elem == "x":
+            LT = False
+    if LT:
+        while sx != fx:
+            sx += dx
+            # CMD.Velangular.x
+            if binary[sx,sy] == "x":
+                LT = False
+                
+    # Diagonal 
+    sx = csx
+    sy = csy
+    while sy != fy and sx != fx:
+        if sy != fy:
+            sy += dy
+        if sx != fx:
+            sx += dx
+        elem = binary[sx,sy]
+        if elem == "x":
+            Diagonal = False
+            
+    return UT, LT, Diagonal
+        
+# Retrieves from the array the position we currenly have
+def get_current_pos(binary):
+    
+    # binary =   np.array([['0', '0', '0', '0', '0', '0', '0', '0', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x'],
+    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '0', '.', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['0', '.', '.', '.', '0', '.', '.', '.', '.', '.', 'シ', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
+    #                     ['x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x']])
+    
+    position = np.where(binary == 'ﾂ')
+    return position
+
+def select_route(binary):
+    position = get_current_pos(binary)
+    plausible_pos = unseen_neighbors(binary)
+    nearest = min_dist(plausible_pos, position)
+    print(nearest)
+    walkable = check_path(position, nearest, binary)
+    print("WALKABLE", walkable)
+    return nearest, walkable        
 
 
 def main():
