@@ -277,13 +277,18 @@ class RobomasterNode(Node):
         _, ax = plt.subplots()
         ax.scatter(x0,y0, marker='D')
 
-        for elem in wall_points:
-            x,y = elem
-            ax.scatter(x,y, marker='.', color="red")
+        wall_points = np.array(wall_points)
+        wall_x = wall_points[:,0]
+        wall_y = wall_points[:,1]
+        ax.scatter(x = wall_x,y = wall_y, marker='.', color="red")
 
-        for elem in visited_points:
-            x,y = elem
-            ax.scatter(x,y, marker='+', color="gray")
+        visited_points = np.array(visited_points)
+        visited_x = visited_points[:,0]
+        visited_y = visited_points[:,1]
+
+        # for elem in visited_points:
+        #     x,y = elem
+        ax.scatter(x = visited_x,y = visited_y, marker='+', color="gray")
 
         # Offset points (put them in a square box)
         scaling = self.scaling
