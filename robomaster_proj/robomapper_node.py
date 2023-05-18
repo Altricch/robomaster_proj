@@ -65,14 +65,14 @@ class RobomasterNode(Node):
         # self.proximity_r = self.create_subscription(Range, '/RM0001/range_3', self.prox_callback_r, 10)
 
 
-        self.timer = self.create_timer(1/100, self.timer_callback)
+        
 
         self.timer_counter = 0
 
         
     def start(self):
         # Create and immediately start a timer that will regularly publish commands
-        self.timer = self.create_timer(1/60, self.update_callback)
+        self.timer = self.create_timer(1/100, self.timer_callback)
 
     
     def stop(self):
@@ -86,30 +86,15 @@ class RobomasterNode(Node):
         
         pose2d = self.pose3d_to_2d(self.odom_pose)
 
-
-        ### ADDED ###
-
         self.current_pose = pose2d
-
 
         if self.initial_pose is None:
             self.initial_pose = pose2d
-            
-
-        # if self.initial_pose is not None and self.current_pose is not None:
-        #     self.distance_travelled = math.sqrt( (self.current_pose[0] - self.initial_pose[0])**2 + (self.current_pose[1] - self.initial_pose[1])**2 )
-
-
 
 
     def prox_callback_f(self, msg):
-
         # 10.0 is the coppelia standard reading for out of range
-        # TODO: Change outer limit handling, maybe with some other value
         self.range_f = self.range_limit if msg.range == 10.0 else msg.range
-
-        #self.range_f = msg.range
-
     
     # def prox_callback_l(self, msg):
     #     self.range_l = msg.range
@@ -139,21 +124,18 @@ class RobomasterNode(Node):
         return pose2
 
 
-
-    def timer_callback(self):
-        
+    def rotate_360(self, rot_step):
         cmd_vel = Twist() 
         
         if self.state == 'scanning' and self.initial_pose is not None:
             angle = self.current_pose[2]*180/np.pi if self.current_pose[2] > 0 else 360 + self.current_pose[2]*180/np.pi
             angle = round(angle + (self.spins * 360.00),2)
-            cmd_vel.angular.z = 0.2
+            cmd_vel.angular.z = rot_step
 
             if self.counter % 10 == 0:
                 self.get_logger().info(
                             'angle:' + str(angle) + ' | range:' + str(round(self.range_f, 2)))
-                self.points.append([self.range_f, self.current_pose[2]])
-                
+                self.points.append([self.range_f, self.current_pose[2]]) 
             
             if  abs(angle - self.previous_angle) > 180 and self.counter > 500: #5 seconds minimum
                  self.spins +=1
@@ -161,7 +143,17 @@ class RobomasterNode(Node):
                  cmd_vel.angular.z = 0.0
             
             self.previous_angle = angle
-        elif self.state == 'done':
+        
+        self.vel_publisher.publish(cmd_vel)
+
+    def timer_callback(self):
+        
+
+        self.rotate_360(0.2)
+
+        cmd_vel = Twist() 
+
+        if self.state == 'done':
             cmd_vel.angular.z = 0.0
 
             if len(self.points) >= 2:
@@ -170,9 +162,7 @@ class RobomasterNode(Node):
                 print("ERROR, NOT ENOUGH POINTS")
 
         self.counter += 1
-
-        stat = self.state
-        cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = (np.array(self.state_dict[stat])/5)
+        cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = (np.array(self.state_dict[self.state])/5)
 
         self.vel_publisher.publish(cmd_vel)
 
@@ -361,6 +351,8 @@ def main():
     
     # Create an instance of your node class
     node = RobomasterNode()
+
+    node.start()
 
     # Keep processings events until someone manually shuts down the node
     try:
