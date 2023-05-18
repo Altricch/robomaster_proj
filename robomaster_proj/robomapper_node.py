@@ -123,7 +123,7 @@ class RobomasterNode(Node):
         
         return pose2
 
-
+    # Rotates robot by 360 degrees
     def rotate_360(self, rot_step):
         cmd_vel = Twist() 
         
@@ -157,7 +157,7 @@ class RobomasterNode(Node):
             cmd_vel.angular.z = 0.0
 
             if len(self.points) >= 2:
-                self.compute_points()
+                self.compute_all()
             else:
                 print("ERROR, NOT ENOUGH POINTS")
 
@@ -209,7 +209,7 @@ class RobomasterNode(Node):
 
         return max_x, min_x, max_y, min_y, visited, wall
 
-
+    # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scaling, scale_x, scale_y):
 
         # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
@@ -240,74 +240,12 @@ class RobomasterNode(Node):
         return offset_points
 
 
-    def compute_points(self):
-
-        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p([], [], 0.2)
-        x0, y0, _ = self.initial_pose
-        _, ax = plt.subplots()
-        ax.scatter(x0,y0, marker='D')
-        
-        for elem in wall_points:
-            x,y = elem
-            ax.scatter(x,y, marker='.', color="red")
-
-        for elem in visited_points:
-            x,y = elem
-            ax.scatter(x,y, marker='+', color="gray")
-
-        scaling = self.scaling
-
-        x_delta = max_x - min_x
-        y_delta = max_y - min_y
-
-        # Offset points (put them in a square box)
-        min_x = abs(min_x)
-        min_y = abs(min_y)
-
-        scale_x = scaling/x_delta
-        scale_y = scaling/y_delta
-
-        wall_offset = self.comp_offset(min_x, min_y, wall_points, scaling, scale_x, scale_y)
-        visited_offset = self.comp_offset(min_x, min_y, visited_points, scaling, scale_x, scale_y)
-
-        # ### INTERNAL
-
-        # offset_internal_points = []
-        # for point in visited_points:
-        #     x,y = point
-
-        #     # translate points into the positive quadrant
-        #     x += min_x
-        #     y += min_y 
-
-        #     # scale points into coordinate system
-        #     x *= scale_x
-        #     y *= scale_y
-
-        #     x = int(x)
-        #     y = int(y)
-
-        #     # Avoids out of bounds indexes
-        #     if x == scaling:
-        #         x = scaling-1
-        #     if y == scaling:
-        #         y = scaling-1
-
-        #     offset_internal_points.append((x,y))
-
-        # DISCRETIZE INITIAL COORDS
-        x0 = int((x0 + min_x)*scale_x)
-        y0 = int((y0 + min_y)*scale_y)
-        
-        #print("new mapped points")
-        #print(offset_points)
-
-        #TODO 
-        # Make offset discretized points a set
-
-        grid = np.full((scaling,scaling), fill_value=0)
+    # Populates a grid with cumulative statistics according to discretized votes
+    # for both wall points (postiive values) and visited points (negative values) 
+    def pop_grid(self, wall_offset, visited_offset, scaling):
+        grid = np.zeros((scaling,scaling))
         for point in wall_offset:
-            x,y =  point # inverted points to conforn to array logic
+            x,y =  point            # inverted points to conforn to array logic
             grid[y][x] += 1
 
         internal_only = set(visited_offset).difference(set(wall_offset))
@@ -316,32 +254,72 @@ class RobomasterNode(Node):
             if point in internal_only:
                 x,y =  point # inverted points to conforn to array logic
                 grid[y][x] -= 1
-        
-        #grid[y0,x0] = 'シ'
-        corrected_grid = np.flip(grid, axis=0)
-        #[print(elem) for elem in corrected_grid]
-        print(corrected_grid)
-        #print(corrected_grid)
 
-        blocked_grid = np.where(corrected_grid >= 2, 'x', (np.where(corrected_grid <= -2, '.', '0')))
-
-        blocked_grid[y0,x0] = 'シ' #This is us
-
-        coords = np.argwhere(blocked_grid == 'x')
-        print("wall coords amount:", len(coords))
-
-        print(blocked_grid)
-        #print(blocked_grid.transpose())
-
+        return grid
     
+    # takes the cummulative grid and transforms it into an binary representation. 
+    # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise. 
+    # Lastly, we cap the cumulative probability for both states according to observations
+    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall = 2, cap_visited = -2):
+        binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
+
+        binary_grid[binary_grid.shape[0] - y0, x0] = 'シ' # This is us
+
+        return binary_grid
+    
+
+
+    def compute_all(self):
+        
+
+        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p([], [], 0.2)
+        x0, y0, _ = self.initial_pose
+        _, ax = plt.subplots()
+        ax.scatter(x0,y0, marker='D')
+
+        for elem in wall_points:
+            x,y = elem
+            ax.scatter(x,y, marker='.', color="red")
+
+        for elem in visited_points:
+            x,y = elem
+            ax.scatter(x,y, marker='+', color="gray")
+
+        # Offset points (put them in a square box)
+        scaling = self.scaling
+        x_delta = max_x - min_x
+        y_delta = max_y - min_y
+        min_x = abs(min_x)
+        min_y = abs(min_y)
+        scale_x = scaling/x_delta
+        scale_y = scaling/y_delta
+
+
+        # Compute offset for wall points and visited points
+        wall_offset = self.comp_offset(min_x, min_y, wall_points, scaling, scale_x, scale_y)
+        visited_offset = self.comp_offset(min_x, min_y, visited_points, scaling, scale_x, scale_y)
+
+        # DISCRETIZE INITIAL COORDS
+        x0 = int((x0 + min_x)*scale_x)
+        y0 = int((y0 + min_y)*scale_y)
+        
+        # Get cumulative grid with votes
+        grid = self.pop_grid(wall_offset, visited_offset, scaling)
+        
+        # Flip the grid and print cummulative grid
+        corrected_grid = np.flip(grid, axis=0)
+        print(corrected_grid)
+        
+        # Get binary grid and print
+        binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
+        print(binary_grid)
+
+        # check how many points are identified as wall
+        coords = np.argwhere(binary_grid == 'x')
+        print("wall coords amount:", len(coords))
+        
         ax.set_title("map1")
         plt.show()
-
-
-
-    def plot_points(self, points):
-        #for point in points:
-        return
 
         
 
