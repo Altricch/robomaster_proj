@@ -31,6 +31,8 @@ class RobomasterNode(Node):
         # self.range_l = -1.0
         # self.range_r = -1.0
         # self.range_b = -1.0
+        self.range_limit = 5.0 + 0.1
+        self.scaling = 20 #10
 
         self.initial_pose = None
         self.current_pose = None
@@ -102,7 +104,9 @@ class RobomasterNode(Node):
 
     def prox_callback_f(self, msg):
 
-        self.range_f = 1.0 if msg.range == 10.0 else msg.range
+        # 10.0 is the coppelia standard reading for out of range
+        # TODO: Change outer limit handling, maybe with some other value
+        self.range_f = self.range_limit if msg.range == 10.0 else msg.range
 
         #self.range_f = msg.range
 
@@ -176,6 +180,7 @@ class RobomasterNode(Node):
     def compute_points(self):
         current_points = []
         visited_points = []
+        out_range_readings = []
 
         x0, y0, t = self.initial_pose
 
@@ -191,11 +196,13 @@ class RobomasterNode(Node):
             x1 = x0 + dist * np.cos(theta)
             y1 = y0 + dist * np.sin(theta)
 
-            current_points.append([x1,y1])
+
+            if dist < self.range_limit:
+                current_points.append([x1,y1])
 
 
             # MIDDLE POINTS / VISITED COMPUTATION # 
-            map_len_const = 0.25 #0.25
+            map_len_const = 0.2 #0.25
             step = map_len_const
             while(step < dist):
                 x_mid = x0 + step * np.cos(theta)
@@ -216,7 +223,8 @@ class RobomasterNode(Node):
 
 
             print('x ' + str(round(x1,2)), 'y ' + str(round(y1,2)))
-            ax.scatter(x1,y1, marker='.', color="red")
+            if dist < self.range_limit:
+                ax.scatter(x1,y1, marker='.', color="red")
 
 
         for elem in visited_points:
@@ -232,7 +240,7 @@ class RobomasterNode(Node):
         y_delta = max_y - min_y
         max_disc = max(x_delta, y_delta) # ensures to have a squared bounding box
 
-        scaling = 10
+        scaling = self.scaling
 
         # Offset points (put them in a square box)
         
@@ -263,10 +271,10 @@ class RobomasterNode(Node):
             y = int(y)
 
             # TOBE FIXED LATER
-            if x == 10:
-                x = 9
-            if y == 10:
-                y = 9
+            if x == scaling:
+                x = scaling -1
+            if y == scaling:
+                y = scaling -1
 
             offset_points.append((x,y))
 
@@ -287,11 +295,11 @@ class RobomasterNode(Node):
             x = int(x)
             y = int(y)
 
-            # TOBE FIXED LATER
-            if x == 10:
-                x = 9
-            if y == 10:
-                y = 9
+            # Avoids out of bounds indexes
+            if x == scaling:
+                x = scaling-1
+            if y == scaling:
+                y = scaling-1
 
             offset_internal_points.append((x,y))
 
@@ -305,7 +313,7 @@ class RobomasterNode(Node):
         #TODO 
         # Make offset discretized points a set
 
-        grid = np.full((10,10), fill_value=0)
+        grid = np.full((scaling,scaling), fill_value=0)
         for point in offset_points:
             x,y =  point # inverted points to conforn to array logic
             grid[y][x] += 1
@@ -319,9 +327,11 @@ class RobomasterNode(Node):
         
         #grid[y0,x0] = 'シ'
         corrected_grid = np.flip(grid, axis=0)
+        #[print(elem) for elem in corrected_grid]
         print(corrected_grid)
+        #print(corrected_grid)
 
-        blocked_grid = np.where(corrected_grid >= 2, 'x', 0)
+        blocked_grid = np.where(corrected_grid >= 2, 'x', (np.where(corrected_grid <= -2, '.', '0')))
 
         blocked_grid[y0,x0] = 'シ' #This is us
 
@@ -345,6 +355,7 @@ class RobomasterNode(Node):
 
 
 def main():
+    np.set_printoptions(linewidth=100)
     # Initialize the ROS client library
     rclpy.init(args=sys.argv)
     
