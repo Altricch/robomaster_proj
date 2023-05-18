@@ -166,16 +166,10 @@ class RobomasterNode(Node):
 
         self.vel_publisher.publish(cmd_vel)
 
-    
-    def compute_points(self):
-        current_points = []
-        visited_points = []
-        out_range_readings = []
+    # Populate all visited points and all wall points. Discretizes basd on a factor
+    def pop_visited_wall_p(self, visited, wall, discrete):
+        x0, y0, _ = self.initial_pose
 
-        x0, y0, t = self.initial_pose
-
-        fig, ax = plt.subplots()
-        ax.scatter(x0,y0, marker='D')
         min_x = 0
         max_x = 0
         min_y = 0
@@ -188,18 +182,15 @@ class RobomasterNode(Node):
 
 
             if dist < self.range_limit:
-                current_points.append([x1,y1])
+                wall.append([x1,y1])
 
-
-            # MIDDLE POINTS / VISITED COMPUTATION # 
-            map_len_const = 0.2 #0.25
+            map_len_const = discrete #0.25
             step = map_len_const
             while(step < dist):
                 x_mid = x0 + step * np.cos(theta)
                 y_mid = y0 + step * np.sin(theta)
-                visited_points.append([x_mid, y_mid])
+                visited.append([x_mid, y_mid])
                 step += map_len_const
-            #######################################
 
             if x1 > max_x:
                 max_x = round(x1,2)
@@ -211,42 +202,20 @@ class RobomasterNode(Node):
             elif y1 < min_y:
                 min_y = y1
 
-
-            print('x ' + str(round(x1,2)), 'y ' + str(round(y1,2)))
-            if dist < self.range_limit:
-                ax.scatter(x1,y1, marker='.', color="red")
-
-
-        for elem in visited_points:
-            x,y = elem
-            ax.scatter(x,y, marker='+', color="gray")
-
         self.state = 'map'
 
         print("X min:" + str(min_x) + " | max:" + str(max_x))
         print("Y min:" + str(min_y) + " | max:" + str(max_y))
 
-        x_delta = max_x - min_x
-        y_delta = max_y - min_y
-        max_disc = max(x_delta, y_delta) # ensures to have a squared bounding box
+        return max_x, min_x, max_y, min_y, visited, wall
 
-        scaling = self.scaling
 
-        # Offset points (put them in a square box)
-        
-        if min_x < 0:
-            min_x = -(min_x)
-        
-        if min_y < 0:
-            min_y = -(min_y)
-
-        scale_x = scaling/x_delta
-        scale_y = scaling/y_delta
+    def comp_offset(self, min_x, min_y, points, scaling, scale_x, scale_y):
 
         # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
         offset_points = []
         
-        for point in current_points:
+        for point in points:
             x,y = point
 
             # translate points into the positive quadrant
@@ -268,30 +237,63 @@ class RobomasterNode(Node):
 
             offset_points.append((x,y))
 
-        ### INTERNAL
+        return offset_points
 
-        offset_internal_points = []
-        for point in visited_points:
-            x,y = point
 
-            # translate points into the positive quadrant
-            x += min_x
-            y += min_y 
+    def compute_points(self):
 
-            # scale points into coordinate system
-            x *= scale_x
-            y *= scale_y
+        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p([], [], 0.2)
+        x0, y0, _ = self.initial_pose
+        _, ax = plt.subplots()
+        ax.scatter(x0,y0, marker='D')
+        
+        for elem in wall_points:
+            x,y = elem
+            ax.scatter(x,y, marker='.', color="red")
 
-            x = int(x)
-            y = int(y)
+        for elem in visited_points:
+            x,y = elem
+            ax.scatter(x,y, marker='+', color="gray")
 
-            # Avoids out of bounds indexes
-            if x == scaling:
-                x = scaling-1
-            if y == scaling:
-                y = scaling-1
+        scaling = self.scaling
 
-            offset_internal_points.append((x,y))
+        x_delta = max_x - min_x
+        y_delta = max_y - min_y
+
+        # Offset points (put them in a square box)
+        min_x = abs(min_x)
+        min_y = abs(min_y)
+
+        scale_x = scaling/x_delta
+        scale_y = scaling/y_delta
+
+        wall_offset = self.comp_offset(min_x, min_y, wall_points, scaling, scale_x, scale_y)
+        visited_offset = self.comp_offset(min_x, min_y, visited_points, scaling, scale_x, scale_y)
+
+        # ### INTERNAL
+
+        # offset_internal_points = []
+        # for point in visited_points:
+        #     x,y = point
+
+        #     # translate points into the positive quadrant
+        #     x += min_x
+        #     y += min_y 
+
+        #     # scale points into coordinate system
+        #     x *= scale_x
+        #     y *= scale_y
+
+        #     x = int(x)
+        #     y = int(y)
+
+        #     # Avoids out of bounds indexes
+        #     if x == scaling:
+        #         x = scaling-1
+        #     if y == scaling:
+        #         y = scaling-1
+
+        #     offset_internal_points.append((x,y))
 
         # DISCRETIZE INITIAL COORDS
         x0 = int((x0 + min_x)*scale_x)
@@ -304,13 +306,13 @@ class RobomasterNode(Node):
         # Make offset discretized points a set
 
         grid = np.full((scaling,scaling), fill_value=0)
-        for point in offset_points:
+        for point in wall_offset:
             x,y =  point # inverted points to conforn to array logic
             grid[y][x] += 1
 
-        internal_only = set(offset_internal_points).difference(set(offset_points))
+        internal_only = set(visited_offset).difference(set(wall_offset))
 
-        for point in offset_internal_points:
+        for point in visited_offset:
             if point in internal_only:
                 x,y =  point # inverted points to conforn to array logic
                 grid[y][x] -= 1
