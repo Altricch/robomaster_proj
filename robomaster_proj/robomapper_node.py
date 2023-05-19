@@ -32,11 +32,11 @@ class RobomasterNode(Node):
         # self.range_l = -1.0
         # self.range_r = -1.0
         # self.range_b = -1.0
-        self.range_limit = 5.0 + 0.1
+        self.range_limit = 5.0 + 0.15
         self.scaling = 20  # 10
         self.speed_damper = 5.0
 
-        self.discrete = 0.25
+        self.discrete = 0.2
 
         self.initial_pose = None
         self.current_pose = None
@@ -96,7 +96,7 @@ class RobomasterNode(Node):
 
     def prox_callback_f(self, msg):
         # 10.0 is the coppelia standard reading for out of range
-        self.range_f = self.range_limit if msg.range == 10.0 else msg.range
+        self.range_f = self.range_limit if msg.range == 10.0 else msg.range + 0.15
 
     # def prox_callback_l(self, msg):
     #     self.range_l = msg.range
@@ -228,8 +228,11 @@ class RobomasterNode(Node):
             y += min_y
 
             # scale points into coordinate system
-            x *= scale_x
-            y *= scale_y
+            x /= scale_x
+            y /= scale_y
+            
+            # x *= scale_x
+            # y *= scale_y
 
             x = int(x)
             y = int(y)
@@ -299,20 +302,31 @@ class RobomasterNode(Node):
         # scaling = self.scaling
         x_delta = max_x - min_x
         y_delta = max_y - min_y
+        
         min_x = abs(min_x)
         min_y = abs(min_y)
-        scale_x = self.scaling/x_delta
-        scale_y = self.scaling/y_delta
+        
+        abs_delta = x_delta if x_delta > y_delta else y_delta
+        
+        # scale_x = self.scaling/x_delta
+        # scale_y = self.scaling/y_delta
+        
+        scale_x = abs_delta/self.scaling
+        scale_y = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
         wall_offset = self.comp_offset(
             min_x, min_y, wall_points, scale_x, scale_y)
+        
         visited_offset = self.comp_offset(
             min_x, min_y, visited_points, scale_x, scale_y)
 
         # DISCRETIZE INITIAL COORDS
-        x0 = int((x0 + min_x)*scale_x)
-        y0 = int((y0 + min_y)*scale_y)
+        # x0 = int((x0 + min_x)*scale_x)
+        # y0 = int((y0 + min_y)*scale_y)
+        
+        x0 = int((x0 + min_x)/scale_x)
+        y0 = int((y0 + min_y)/scale_y)
 
         # Get cumulative grid with votes
         grid = self.pop_grid(wall_offset, visited_offset)
