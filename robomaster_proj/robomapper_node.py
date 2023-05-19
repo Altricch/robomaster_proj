@@ -33,7 +33,7 @@ class RobomasterNode(Node):
         # self.range_r = -1.0
         # self.range_b = -1.0
         self.range_limit = 5.0 + 0.15
-        self.scaling = 20  # 10
+        self.scaling = 10  # 10
         self.speed_damper = 5.0
 
         self.discrete = 0.2
@@ -151,6 +151,7 @@ class RobomasterNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def timer_callback(self):
+        self.counter += 1
 
         self.rotate_360(0.2)
 
@@ -163,7 +164,7 @@ class RobomasterNode(Node):
             else:
                 print("ERROR, NOT ENOUGH POINTS")
 
-        self.counter += 1
+        
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
 
@@ -183,6 +184,7 @@ class RobomasterNode(Node):
         discrete = self.discrete
 
         for dist, theta in self.points:
+    
             x1 = x0 + dist * np.cos(theta)
             y1 = y0 + dist * np.sin(theta)
 
