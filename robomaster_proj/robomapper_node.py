@@ -35,6 +35,8 @@ class RobomasterNode(Node):
         self.scaling = 20 #10
         self.speed_damper = 5.0
 
+        self.discrete = 0.25
+        
         self.initial_pose = None
         self.current_pose = None
         self.target_pose = None
@@ -170,7 +172,7 @@ class RobomasterNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     # Populate all visited points and all wall points. Discretizes basd on a factor
-    def pop_visited_wall_p(self, visited, wall, discrete):
+    def pop_visited_wall_p(self):
         x0, y0, _ = self.initial_pose
 
         min_x = 0
@@ -178,6 +180,9 @@ class RobomasterNode(Node):
         min_y = 0
         max_y = 0 
 
+        visited = []
+        wall = []
+        discrete = self.discrete
         
         for dist,theta in self.points:
             x1 = x0 + dist * np.cos(theta)
@@ -213,7 +218,7 @@ class RobomasterNode(Node):
         return max_x, min_x, max_y, min_y, visited, wall
 
     # given offset given point coordinates by a given amount
-    def comp_offset(self, min_x, min_y, points, scaling, scale_x, scale_y):
+    def comp_offset(self, min_x, min_y, points, scale_x, scale_y):
 
         # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
         offset_points = []
@@ -233,10 +238,10 @@ class RobomasterNode(Node):
             y = int(y)
 
             # TOBE FIXED LATER
-            if x == scaling:
-                x = scaling -1
-            if y == scaling:
-                y = scaling -1
+            if x == self.scaling:
+                x = self.scaling -1
+            if y == self.scaling:
+                y = self.scaling -1
 
             offset_points.append((x,y))
 
@@ -245,8 +250,8 @@ class RobomasterNode(Node):
 
     # Populates a grid with cumulative statistics according to discretized votes
     # for both wall points (postiive values) and visited points (negative values) 
-    def pop_grid(self, wall_offset, visited_offset, scaling):
-        grid = np.zeros((scaling,scaling))
+    def pop_grid(self, wall_offset, visited_offset):
+        grid = np.zeros((self.scaling,self.scaling))
         for point in wall_offset:
             x,y =  point            # inverted points to conforn to array logic
             grid[y][x] += 1
@@ -267,20 +272,19 @@ class RobomasterNode(Node):
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise. 
     # Lastly, we cap the cumulative probability for both states according to observations
     def pop_binary_grid(self, acc_grid, x0, y0, cap_wall = 2, cap_visited = -2):
-        binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
-        binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # ﾂｯツシｼッシ'This is us
+        # binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
+        # binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # ﾂｯツシｼッシ'This is us
 
-        # binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
-        # binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ' # ﾂｯツシｼッシ'This is us
+        binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
+        binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ' # ﾂｯツシｼッシ'This is us
 
         return binary_grid
     
 
 
     def compute_all(self):
-        
-
-        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p([], [], 0.2)
+    
+        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
         _, ax = plt.subplots()
         ax.scatter(x0,y0, marker='D')
@@ -299,25 +303,25 @@ class RobomasterNode(Node):
         ax.scatter(x = wall_x,y = wall_y, marker='.', color="red")
 
         # Offset points (put them in a square box)
-        scaling = self.scaling
+        # scaling = self.scaling
         x_delta = max_x - min_x
         y_delta = max_y - min_y
         min_x = abs(min_x)
         min_y = abs(min_y)
-        scale_x = scaling/x_delta
-        scale_y = scaling/y_delta
+        scale_x = self.scaling/x_delta
+        scale_y = self.scaling/y_delta
 
 
         # Compute offset for wall points and visited points
-        wall_offset = self.comp_offset(min_x, min_y, wall_points, scaling, scale_x, scale_y)
-        visited_offset = self.comp_offset(min_x, min_y, visited_points, scaling, scale_x, scale_y)
+        wall_offset = self.comp_offset(min_x, min_y, wall_points, scale_x, scale_y)
+        visited_offset = self.comp_offset(min_x, min_y, visited_points, scale_x, scale_y)
 
         # DISCRETIZE INITIAL COORDS
         x0 = int((x0 + min_x)*scale_x)
         y0 = int((y0 + min_y)*scale_y)
         
         # Get cumulative grid with votes
-        grid = self.pop_grid(wall_offset, visited_offset, scaling)
+        grid = self.pop_grid(wall_offset, visited_offset)
         
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
