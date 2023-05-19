@@ -253,6 +253,9 @@ class RobomasterNode(Node):
 
         internal_only = set(visited_offset).difference(set(wall_offset))
 
+
+
+
         for point in visited_offset:
             if point in internal_only:
                 x,y =  point # inverted points to conforn to array logic
