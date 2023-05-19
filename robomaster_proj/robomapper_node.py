@@ -43,7 +43,7 @@ class RobomasterNode(Node):
         self.target_pose = None
 
         self.counter = 0
-        self.range_f = -1.0
+        self.range_f = None
         self.distance_travelled = 0
         self.previous_angle = 0         # previous yaw in rad
         self.spins = 0                  # how many full spins the robot has done
