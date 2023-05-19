@@ -264,11 +264,11 @@ class RobomasterNode(Node):
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise. 
     # Lastly, we cap the cumulative probability for both states according to observations
     def pop_binary_grid(self, acc_grid, x0, y0, cap_wall = 2, cap_visited = -2):
-        #binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
-        #binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # ﾂｯツシｼッシ'This is us
+        binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
+        binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # ﾂｯツシｼッシ'This is us
 
-        binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
-        binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ' # ﾂｯツシｼッシ'This is us
+        # binary_grid = np.where(acc_grid >= cap_wall, 'x', (np.where(acc_grid <= cap_visited, '.', '0')))
+        # binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ' # ﾂｯツシｼッシ'This is us
 
         return binary_grid
     
@@ -323,8 +323,8 @@ class RobomasterNode(Node):
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
 
-        print(binary_grid)
-        #print(np.array2string(binary_grid, separator=' ', formatter={'str_kind': lambda x: x}))
+        # print(binary_grid)
+        print(np.array2string(binary_grid, separator=' ', formatter={'str_kind': lambda x: x}))
 
         # check how many points are identified as wall
         coords = np.argwhere(binary_grid == 'x')
