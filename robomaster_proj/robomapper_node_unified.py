@@ -32,15 +32,22 @@ class RobomasterNode(Node):
         # self.range_l = -1.0
         # self.range_r = -1.0
         # self.range_b = -1.0
-        self.range_limit = 5.0 + 0.15
-        self.scaling = 10  # 10
-        self.speed_damper = 5.0
+        self.range_limit = 5.0 + 0.15   # range limit plus distance from ICR
+        self.scaling = 20               # grid size
+        self.speed_damper = 5.0         # the higher the slower
 
-        self.discrete = 0.2
+        self.discrete = 0.2             # computation distance of walkable points
 
         self.initial_pose = None
         self.current_pose = None
         self.target_pose = None
+
+        ### CHRIS
+        self._delt_target_pose = None
+
+        self.xtrav = True
+        self.ytrav = True
+        ###
 
         self.counter = 0
         self.range_f = -1
@@ -52,10 +59,12 @@ class RobomasterNode(Node):
         self.state = "scanning"
 
         # Key: state, Val: velocities [lin x, lin y, ang z]
-        self.state_dict = {"scanning": [0.0, 0.0, 1.0],
-                           "done": [0.0, 0.0, 0.0],
-                           "map": [0.0, 0.0, 0.0],
-                           "move": [0.0, 1.0, 0.0]}
+        self.state_dict = {"scanning":[0.0, 0.0, 1.0],
+                               "done":[ 0.0, 0.0, 0.0],
+                                "map":[ 0.0 , 0.0, 0.0],
+                               "move":[ 0.0, 1.0, 0.0],
+                               "target": [0.0,0.0,0.0],
+                               "target_def": [0.0,0.0,0.0]}
 
         self.odom_pose = None
         self.odom_velocity = None
@@ -164,7 +173,44 @@ class RobomasterNode(Node):
             else:
                 print("ERROR, NOT ENOUGH POINTS")
 
-        
+        ### CHRIS
+        if self.state == "target_def":
+            sx, sy, _ = self.current_pose
+
+            d_x = self.delt_target_pose[0]
+            d_y = self.delt_target_pose[1]
+
+            fx = sx + d_x
+            fy = sy - d_y
+
+            self.target_pos = fx, fy, 0
+
+            self.state = "target"
+
+        if self.state == "target":
+            sx, sy, _ = self.current_pose
+            dir_x = np.sign(self.delt_target_pose[0][0])
+            dir_y = -np.sign(self.delt_target_pose[1][0])
+
+            if self.counter % 100 == 0:
+                self.get_logger().info(
+                    'Sx:' + str(sx) + ' | Sy:' + str(sy) + ' Fx ' + str(self.target_pos[0]) + "FY" + str(
+                        self.target_pos[1]))
+                print(" DIR X ", dir_x)
+                print(" DIR Y", dir_y)
+
+            if abs(self.target_pos[0] - sx) > 0.005 and self.xtrav:
+                self.state_dict["target"] = [dir_x, 0.0, 0.0]
+                # print("SY ", sy)
+            elif abs(self.target_pos[1] - sy) > 0.005 and self.ytrav:
+                self.xtrav = False
+                self.state_dict["target"] = [0.0, dir_y, 0.0]
+
+            else:
+                self.ytrav = False
+                self.state = "map"
+        ###
+
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
 
@@ -313,7 +359,9 @@ class RobomasterNode(Node):
         
         # scale_x = self.scaling/x_delta
         # scale_y = self.scaling/y_delta
-        
+
+
+        # TODO KEEP ONE!
         scale_x = abs_delta/self.scaling
         scale_y = abs_delta/self.scaling
 
@@ -351,15 +399,43 @@ class RobomasterNode(Node):
 
         ### GETTING CLOSEST ####
         print(binary_grid.shape)
-        nearest, walkable = select_route(binary_grid)
-        dest_x, dest_y = nearest
+        nearest, position, walkable = select_route(binary_grid)
+
+        # inverted x & y
+        fy, fx = nearest
         print("nearest and walkable options")
         print(nearest, walkable)
         #########################
 
         # self.state = 'move'
         ax.set_title("map1")
-        plt.show()
+        plt.ion()
+        plt.show(block = False)
+        plt.pause(interval = 2)
+
+        print("now after block")
+        self.state = 'move'
+
+        sx, sy, = np.where(binary_grid == 'ﾂ')
+
+        print("SX ", sx , " SY ", sy)
+
+        print("SCALE X ", scale_x)
+        print("SCALE Y ", scale_y)
+
+        # Inverted
+        dfy = (fx - sx) / scale_x
+        dfx = (fy - sy) / scale_y
+
+        print("DFX", dfx)
+        print("DFY", dfy)
+
+        self.delt_target_pose = (dfx , dfy, 0)
+
+        self.state = "target_def"
+
+
+
 
 
 # Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
@@ -374,8 +450,6 @@ def unseen_neighbors(binary):
     return plausible_pos
 
 # Retrieves the element with min distance amongst all plausible candidates
-
-
 def min_dist(plausible_cand, current_pos):
     sx, sy = current_pos
     nearest = None
@@ -390,25 +464,29 @@ def min_dist(plausible_cand, current_pos):
     return nearest
 
 # Checks whether a position is a candidate
+def candidate(binary, elem):
 
-
-def candidate(binary, elem, min_x=0, min_y=0):
+    max_x = len(binary)
+    min_x = 0
+    max_y = len(binary)
+    min_y = 0
     in_0_neihborhood = False
     in_reach_neighborhood = False
+    in_wall_neighborhood = False
 
     x, y = elem
 
     elems = []
     # Border element
-    if min_x < x < binary.shape[0] and min_y < y < binary.shape[1]:
-        elems.append((x+1, y))
-        elems.append((x-1, y))
-        elems.append((x, y+1))
-        elems.append((x, y-1))
-        elems.append((x+1, y+1))
-        elems.append((x-1, y-1))
-        elems.append((x+1, y-1))
-        elems.append((x-1, y+1))
+    if min_x < x < max_x - 1 and min_y < y < max_y - 1:
+        elems.append((x+1,y))
+        elems.append((x-1,y))
+        elems.append((x,y+1))
+        elems.append((x,y-1))
+        elems.append((x+1,y+1))
+        elems.append((x-1,y-1))
+        elems.append((x+1,y-1))
+        elems.append((x-1,y+1))
 
     if len(elems) == 0:
         return False
@@ -419,15 +497,15 @@ def candidate(binary, elem, min_x=0, min_y=0):
             in_0_neihborhood = True
         if binary[x_t, y_t] == ".":
             in_reach_neighborhood = True
+        if binary[x_t, y_t] == "x":
+            in_wall_neighborhood = True
 
-        if in_0_neihborhood and in_reach_neighborhood:
+        if in_0_neihborhood and in_reach_neighborhood and not in_wall_neighborhood:
             return True
 
-    return in_0_neihborhood and in_reach_neighborhood
+    return in_0_neihborhood and in_reach_neighborhood and not in_wall_neighborhood
 
 # either LT, UT, Diag, Hor
-
-
 def check_path(current_pos, target_pos, binary):
     sx, sy = current_pos
     fx, fy = target_pos
@@ -488,8 +566,6 @@ def check_path(current_pos, target_pos, binary):
     return UT, LT, Diagonal
 
 # Retrieves from the array the position we currenly have
-
-
 def get_current_pos(binary):
 
     # binary =   np.array([['0', '0', '0', '0', '0', '0', '0', '0', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x'],
@@ -524,7 +600,7 @@ def select_route(binary):
     print(nearest)
     walkable = check_path(position, nearest, binary)
     print("WALKABLE", walkable)
-    return nearest, walkable
+    return nearest, position, walkable
 
 
 def main():

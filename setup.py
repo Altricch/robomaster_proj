@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'robomaster_node = robomaster_proj.robomaster_node:main',
-            'robomapper_node = robomaster_proj.robomapper_node:main'
+            'robomapper_node = robomaster_proj.robomapper_node:main',
+            'robomapper_node2 = robomaster_proj.robomapper_node_unified:main'
         ],
     },
 )
