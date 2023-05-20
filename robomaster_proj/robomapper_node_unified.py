@@ -175,13 +175,16 @@ class RobomasterNode(Node):
 
         ### CHRIS
         if self.state == "target_def":
-            sx, sy, _ = self.current_pose
+            
+            sx, sy, t = self.current_pose
+
+            print("theta", t)
 
             d_x = self.delt_target_pose[0]
             d_y = self.delt_target_pose[1]
 
             fx = sx + d_x
-            fy = sy - d_y
+            fy = sy + d_y
 
             self.target_pos = fx, fy, 0
 
@@ -189,8 +192,8 @@ class RobomasterNode(Node):
 
         if self.state == "target":
             sx, sy, _ = self.current_pose
-            dir_x = np.sign(self.delt_target_pose[0][0])
-            dir_y = -np.sign(self.delt_target_pose[1][0])
+            dir_x = np.sign(self.delt_target_pose[0])
+            dir_y = np.sign(self.delt_target_pose[1])
 
             if self.counter % 100 == 0:
                 self.get_logger().info(
@@ -199,16 +202,27 @@ class RobomasterNode(Node):
                 print(" DIR X ", dir_x)
                 print(" DIR Y", dir_y)
 
-            if abs(self.target_pos[0] - sx) > 0.005 and self.xtrav:
+            ### THIS IS FOR UPPER TRIANGULAR
+            if abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                self.state_dict["target"] = [0.0, dir_y, 0.0]
+            elif abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
+                self.ytrav = False
                 self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 # print("SY ", sy)
-            elif abs(self.target_pos[1] - sy) > 0.005 and self.ytrav:
-                self.xtrav = False
-                self.state_dict["target"] = [0.0, dir_y, 0.0]
-
             else:
-                self.ytrav = False
+                self.xtrav = False
                 self.state = "map"
+
+            ### THIS IS FOR LOWER TRIANGULAR
+            # if abs(self.target_pos[0] - sx) > 0.005 and self.xtrav:
+            #     self.state_dict["target"] = [dir_x, 0.0, 0.0]
+            #     # print("SY ", sy)
+            # elif abs(self.target_pos[1] - sy) > 0.005 and self.ytrav:
+            #     self.xtrav = False
+            #     self.state_dict["target"] = [0.0, dir_y, 0.0]
+            # else:
+            #     self.ytrav = False
+            #     self.state = "map"
         ###
 
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
@@ -360,24 +374,21 @@ class RobomasterNode(Node):
         # scale_x = self.scaling/x_delta
         # scale_y = self.scaling/y_delta
 
-
-        # TODO KEEP ONE!
-        scale_x = abs_delta/self.scaling
-        scale_y = abs_delta/self.scaling
+        scale = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
         wall_offset = self.comp_offset(
-            min_x, min_y, wall_points, scale_x, scale_y)
+            min_x, min_y, wall_points, scale, scale)
         
         visited_offset = self.comp_offset(
-            min_x, min_y, visited_points, scale_x, scale_y)
+            min_x, min_y, visited_points, scale, scale)
 
         # DISCRETIZE INITIAL COORDS
         # x0 = int((x0 + min_x)*scale_x)
         # y0 = int((y0 + min_y)*scale_y)
         
-        x0 = int((x0 + min_x)/scale_x)
-        y0 = int((y0 + min_y)/scale_y)
+        x0 = int((x0 + min_x)/scale)
+        y0 = int((y0 + min_y)/scale)
 
         # Get cumulative grid with votes
         grid = self.pop_grid(wall_offset, visited_offset)
@@ -399,13 +410,16 @@ class RobomasterNode(Node):
 
         ### GETTING CLOSEST ####
         print(binary_grid.shape)
-        nearest, position, walkable = select_route(binary_grid)
+        nearest, position, walkable, vertical_delta, horizontal_delta = select_route(binary_grid)
 
         # inverted x & y
         fy, fx = nearest
-        print("nearest and walkable options")
-        print(nearest, walkable)
+        sy, sx = position
         #########################
+
+        case1 = walkable[0] # Move vertically first then horizontally
+        case2 = walkable[1] # Move horizontally first then vertically
+        case3 = walkable[2] # Move diagonally first then either vertically or horizontally
 
         # self.state = 'move'
         ax.set_title("map1")
@@ -416,26 +430,28 @@ class RobomasterNode(Node):
         print("now after block")
         self.state = 'move'
 
-        sx, sy, = np.where(binary_grid == 'ﾂ')
-
-        print("SX ", sx , " SY ", sy)
-
-        print("SCALE X ", scale_x)
-        print("SCALE Y ", scale_y)
+        print("inversion of x and y")
+        print("Start X ", sx , " Start Y ", sy)
+        print("Target X ", fx , " Target Y ", fy)
+        print("SCALE FACTOR", scale)
 
         # Inverted
-        dfy = (fx - sx) / scale_x
-        dfx = (fy - sy) / scale_y
+        dfx = horizontal_delta * scale 
+        dfy = -vertical_delta * scale
 
+        print("in world scale")
         print("DFX", dfx)
         print("DFY", dfy)
 
+        print("target pose in world coordinates")
+        print("with respect to our current pose")
+        print("x", self.current_pose[0] + dfx)
+        print("y", self.current_pose[1] + dfy)
+
+        #this might indicate how much to travel but not the end position
         self.delt_target_pose = (dfx , dfy, 0)
 
         self.state = "target_def"
-
-
-
 
 
 # Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
@@ -454,6 +470,7 @@ def min_dist(plausible_cand, current_pos):
     sx, sy = current_pos
     nearest = None
     dist = 100
+
     for cand in plausible_cand:
         fx, fy = cand
         temp_dist = math.sqrt((fx-sx)**2 + (fy-sy)**2)
@@ -472,7 +489,6 @@ def candidate(binary, elem):
     min_y = 0
     in_0_neihborhood = False
     in_reach_neighborhood = False
-    in_wall_neighborhood = False
 
     x, y = elem
 
@@ -498,12 +514,10 @@ def candidate(binary, elem):
         if binary[x_t, y_t] == ".":
             in_reach_neighborhood = True
         if binary[x_t, y_t] == "x":
-            in_wall_neighborhood = True
+            return False
 
-        if in_0_neihborhood and in_reach_neighborhood and not in_wall_neighborhood:
-            return True
+    return in_0_neihborhood and in_reach_neighborhood
 
-    return in_0_neihborhood and in_reach_neighborhood and not in_wall_neighborhood
 
 # either LT, UT, Diag, Hor
 def check_path(current_pos, target_pos, binary):
@@ -589,7 +603,8 @@ def get_current_pos(binary):
     #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
     #                     ['x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x']])
 
-    position = np.where(binary == 'ﾂ')
+    px,py = np.where(binary == 'ﾂ')
+    position = (px[0],py[0]) # array[int] -> int
     return position
 
 
@@ -597,10 +612,32 @@ def select_route(binary):
     position = get_current_pos(binary)
     plausible_pos = unseen_neighbors(binary)
     nearest = min_dist(plausible_pos, position)
-    print(nearest)
     walkable = check_path(position, nearest, binary)
-    print("WALKABLE", walkable)
-    return nearest, position, walkable
+
+    ## TODO: GET NEXT PLASIBLE IN THE EVENT WALKABLES ARE ALL FALSE
+
+    binary[nearest] = '◎'
+    print(np.array2string(binary, separator=' ',
+              formatter={'str_kind': lambda x: x}))
+    
+    dx = nearest[0]-position[0]
+    dy = nearest[1]-position[1]
+
+    # THIS MAY FIX DISCRETIZATION
+    # BASED ON THE SSUMPTION THAT NUMBERS 
+    # HAVE BEEN ROUNDED DOWN EARLIER
+    # MAY CAUSE PROBLEMS FOR 0 VALUES
+    dx += np.sign(dx)
+    dy += np.sign(dy)
+
+    print()
+    print("array coordinates")
+    print("OUR POSITION ﾂ:", position)
+    print("NEAREST POSITION ◎:", nearest)
+    print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
+    print("VERTICAL TRASLATION (rounded up):", dx)
+    print("HORIZONTAL TRASLATION (rounded up):", dy)
+    return nearest, position, walkable, dx, dy
 
 
 def main():
