@@ -614,21 +614,20 @@ def select_route(binary):
     keep_looping = True
     plausible_pos = unseen_neighbors(binary)
 
+    ## TODO: GET NEXT PLASIBLE IN THE EVENT WALKABLES ARE ALL FALSE
     while keep_looping:
         
         nearest = min_dist(plausible_pos, position)
         walkable = check_path(position, nearest, binary)
 
         #TODO reloop polausible without the nearest in case all walkable are false
-        if np.all(walkable == False):
-            plausible_pos = plausible_pos.remove(nearest)
+        if np.all(np.asarray(walkable) == False):
+            print("KEEP LOOPING BABY")
+            plausible_pos.remove(nearest)
         else: 
+            print("STOP LOOPING BABY")
             keep_looping = False
 
-        
-
-
-    ## TODO: GET NEXT PLASIBLE IN THE EVENT WALKABLES ARE ALL FALSE
 
     binary[nearest] = '◎'
     print(np.array2string(binary, separator=' ',
