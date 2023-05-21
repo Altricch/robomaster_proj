@@ -20,11 +20,6 @@ import time
 import random
 
 
-w_discover = False
-room_discvoer = False
-object_discover = False
-
-
 class RobomasterNode(Node):
     def __init__(self):
         super().__init__('robomaster_node')
@@ -57,6 +52,9 @@ class RobomasterNode(Node):
         self.previous_angle = 0         # previous yaw in rad
         self.spins = 0                  # how many full spins the robot has done
         self.points = []                # points list saved as [range, yaw]
+        
+        self.global_visited_points = []
+        self.global_wall_points = []
 
         self.state = "scanning"
 
@@ -214,6 +212,7 @@ class RobomasterNode(Node):
                 else:
                     self.xtrav = False
                     self.state = "scanning"
+                    self.points = []
                     self.initial_pose = None
                     self.counter = 0
             elif self.target_approach == "LT":
@@ -226,6 +225,7 @@ class RobomasterNode(Node):
                 else:
                     self.ytrav = False
                     self.state = "scanning"
+                    self.points = []
                     self.initial_pose = None
                     self.counter = 0
 
@@ -236,8 +236,8 @@ class RobomasterNode(Node):
 
     # Populate all visited points and all wall points. Discretizes basd on a factor
     def pop_visited_wall_p(self):
-
-        x0, y0, _ = self.initial_pose
+        
+        x0, y0, _ = self.current_pose
 
         min_x = 0
         max_x = 0
@@ -254,6 +254,7 @@ class RobomasterNode(Node):
 
             if dist < self.range_limit:
                 wall.append([x1, y1])
+                self.global_wall_points.append([x1, y1])
 
             map_len_const = self.discrete  # 0.25
             step = map_len_const
@@ -261,6 +262,7 @@ class RobomasterNode(Node):
                 x_mid = x0 + step * np.cos(theta)
                 y_mid = y0 + step * np.sin(theta)
                 visited.append([x_mid, y_mid])
+                self.global_visited_points.append([x_mid, y_mid])
                 step += map_len_const
 
             if x1 > max_x:
@@ -340,6 +342,12 @@ class RobomasterNode(Node):
         binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ'  # This is us
 
         return binary_grid
+    
+    def map_plot(self, points, ax, marker, color):
+        points = np.array(points)
+        x = points[:, 0]
+        y = points[:, 1]
+        ax.scatter(x, y, marker=marker, color=color)
 
     def compute_all(self):
 
@@ -347,19 +355,10 @@ class RobomasterNode(Node):
         x0, y0, _ = self.initial_pose
         _, ax = plt.subplots()
         ax.scatter(x0, y0, marker='D')
-
-        visited_points = np.array(visited_points)
-        visited_x = visited_points[:, 0]
-        visited_y = visited_points[:, 1]
-
-        # for elem in visited_points:
-        #     x,y = elem
-        ax.scatter(x=visited_x, y=visited_y, marker='+', color="gray")
-
-        wall_points = np.array(wall_points)
-        wall_x = wall_points[:, 0]
-        wall_y = wall_points[:, 1]
-        ax.scatter(x=wall_x, y=wall_y, marker='.', color="red")
+        
+        #plot of the map        
+        self.map_plot(self.global_visited_points, ax, marker='+', color="gray")
+        self.map_plot(self.global_wall_points, ax, marker='.', color="red")
 
         # Offset points (put them in a square box)
         x_delta = max_x - min_x
