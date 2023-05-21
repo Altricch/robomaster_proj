@@ -364,12 +364,17 @@ class RobomasterNode(Node):
 
         max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
-        _, ax = plt.subplots()
-        ax.scatter(x0, y0, marker='D')
         
-        #plot of the map        
-        self.map_plot(self.global_visited_points, ax, marker='+', color="gray")
-        self.map_plot(self.global_wall_points, ax, marker='.', color="red")
+        _, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 10))
+        ax1.scatter(x0, y0, marker='D')
+        ax2.scatter(x0, y0, marker='D')
+        
+        #plot of the map      
+        self.map_plot(visited_points, ax1, marker='+', color="silver")
+        self.map_plot(wall_points, ax1, marker='.', color="lightcoral")
+        
+        self.map_plot(self.global_visited_points, ax2, marker='+', color="gray")
+        self.map_plot(self.global_wall_points, ax2, marker='.', color="red")
 
         # Offset points (put them in a square box)
         x_delta = max_x - min_x
@@ -418,7 +423,8 @@ class RobomasterNode(Node):
             nearest, position, walkable, vertical_delta, horizontal_delta = result
         else:
             self.state = "stop"
-            ax.set_title("map" + str(self.current_map))
+            ax1.set_title("Current map " + str(self.current_map))
+            ax2.set_title("Combined map " + str(self.current_map))
             self.current_map += 1
             plt.ion()
             plt.show(block = False)
@@ -445,7 +451,8 @@ class RobomasterNode(Node):
             self.target_approach = "UT"
 
         # self.state = 'move'
-        ax.set_title("map" + str(self.current_map))
+        ax1.set_title("Current map " + str(self.current_map))
+        ax2.set_title("Combined map " + str(self.current_map))
         self.current_map += 1
         plt.ion()
         plt.show(block = False)
