@@ -20,7 +20,6 @@ import time
 import random
 
 # TODO: 
-# - FIGURE OUT HOW TO PLOT ALL THE COMPONENTS AND ITERATIONS
 # - Get nearest visited point rahter than unknown
 # - stress test with various rooms
 # - embellish map maybe with 3d stuff
@@ -488,7 +487,8 @@ class RobomasterNode(Node):
 
 # Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
 def unseen_neighbors(binary):
-    unseen = np.where(binary == "0")
+    # unseen = np.where(binary == "0")
+    unseen = np.where(binary == ".")
     x, y = unseen
     plausible_pos = []
     for elem in zip(x, y):
