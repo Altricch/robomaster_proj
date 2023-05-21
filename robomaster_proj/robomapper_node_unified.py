@@ -19,6 +19,13 @@ import time
 
 import random
 
+# TODO: 
+# - FIGURE OUT HOW TO PLOT ALL THE COMPONENTS AND ITERATIONS
+# - Get nearest visited point rahter than unknown
+# - stress test with various rooms
+# - embellish map maybe with 3d stuff
+
+
 
 class RobomasterNode(Node):
     def __init__(self):
@@ -32,6 +39,8 @@ class RobomasterNode(Node):
         self.speed_damper = 5.0         # the higher the slower
 
         self.discrete = 0.2             # computation distance of walkable points
+
+        self.test = 1
 
         self.initial_pose = None
         self.current_pose = None
@@ -352,8 +361,6 @@ class RobomasterNode(Node):
         ax.scatter(x, y, marker=marker, color=color)
 
     def compute_all(self):
-
-        # TODO: FIGURE OUT HOW TO PLOT ALL THE COMPONENTS AND ITERATIONS
 
         max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
