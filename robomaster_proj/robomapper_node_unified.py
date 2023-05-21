@@ -424,7 +424,8 @@ class RobomasterNode(Node):
             self.target_approach = "UT"
 
         # self.state = 'move'
-        ax.set_title("map",self.current_map+1)
+        ax.set_title("map",self.current_map)
+        self.current_map += 1
         plt.ion()
         plt.show(block = False)
         plt.pause(interval = 2)
