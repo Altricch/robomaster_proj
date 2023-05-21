@@ -374,10 +374,10 @@ class RobomasterNode(Node):
 
         # Compute offset for wall points and visited points
         wall_offset = self.comp_offset(
-            min_x, min_y, wall_points, scale)
+            min_x, min_y, self.global_wall_points, scale)
         
         visited_offset = self.comp_offset(
-            min_x, min_y, visited_points, scale)
+            min_x, min_y, self.global_visited_points, scale)
 
         # DISCRETIZE INITIAL COORDS
         x0 = int((x0 + min_x)/scale)
@@ -403,7 +403,13 @@ class RobomasterNode(Node):
 
         ### GETTING CLOSEST ####
         print(binary_grid.shape)
-        nearest, position, walkable, vertical_delta, horizontal_delta = select_route(binary_grid)
+        result = select_route(binary_grid)
+        if type(result) is not type("hello"):
+            nearest, position, walkable, vertical_delta, horizontal_delta = result
+        else:
+            self.state = "done"
+            return
+
 
         # inverted x & y
         fy, fx = nearest
@@ -424,7 +430,7 @@ class RobomasterNode(Node):
             self.target_approach = "UT"
 
         # self.state = 'move'
-        ax.set_title("map",self.current_map)
+        ax.set_title("map" + str(self.current_map))
         self.current_map += 1
         plt.ion()
         plt.show(block = False)
@@ -594,42 +600,47 @@ def select_route(binary):
 
     keep_looping = True
     plausible_pos = unseen_neighbors(binary)
+    if len(plausible_pos) == 0:
+        print("WE HAVE MAPPED EVERYTHING")
+    else:
+        while keep_looping:
+            
+            nearest = min_dist(plausible_pos, position)
+            walkable = check_path(position, nearest, binary)
 
-    while keep_looping:
+            if np.all(np.asarray(walkable) == False):
+                print("KEEP SEARCHING CANDIDATES")
+                plausible_pos.remove(nearest)
+                
+            else: 
+                print("STOP LOOPING: CANDIDATE FOUND")
+                keep_looping = False
+
+
+        binary[nearest] = '◎'
+        print(np.array2string(binary, separator=' ',
+                formatter={'str_kind': lambda x: x}))
         
-        nearest = min_dist(plausible_pos, position)
-        walkable = check_path(position, nearest, binary)
+        dx = nearest[0]-position[0]
+        dy = nearest[1]-position[1]
 
-        if np.all(np.asarray(walkable) == False):
-            print("KEEP SEARCHING CANDIDATES")
-            plausible_pos.remove(nearest)
-        else: 
-            print("STOP LOOPING: CANDIDATE FOUND")
-            keep_looping = False
+        # THIS MAY FIX DISCRETIZATION
+        # BASED ON THE SSUMPTION THAT NUMBERS 
+        # HAVE BEEN ROUNDED DOWN EARLIER
+        # MAY CAUSE PROBLEMS FOR 0 VALUES
+        dx += np.sign(dx)
+        dy += np.sign(dy)
 
-
-    binary[nearest] = '◎'
-    print(np.array2string(binary, separator=' ',
-              formatter={'str_kind': lambda x: x}))
+        print()
+        print("array coordinates")
+        print("OUR POSITION ﾂ:", position)
+        print("NEAREST POSITION ◎:", nearest)
+        print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
+        print("VERTICAL TRASLATION (rounded up):", dx)
+        print("HORIZONTAL TRASLATION (rounded up):", dy)
+        return nearest, position, walkable, dx, dy
     
-    dx = nearest[0]-position[0]
-    dy = nearest[1]-position[1]
-
-    # THIS MAY FIX DISCRETIZATION
-    # BASED ON THE SSUMPTION THAT NUMBERS 
-    # HAVE BEEN ROUNDED DOWN EARLIER
-    # MAY CAUSE PROBLEMS FOR 0 VALUES
-    dx += np.sign(dx)
-    dy += np.sign(dy)
-
-    print()
-    print("array coordinates")
-    print("OUR POSITION ﾂ:", position)
-    print("NEAREST POSITION ◎:", nearest)
-    print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
-    print("VERTICAL TRASLATION (rounded up):", dx)
-    print("HORIZONTAL TRASLATION (rounded up):", dy)
-    return nearest, position, walkable, dx, dy
+    return "Mapped_All"
 
 
 def main():
