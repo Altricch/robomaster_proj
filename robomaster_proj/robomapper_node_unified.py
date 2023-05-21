@@ -65,7 +65,8 @@ class RobomasterNode(Node):
                                 "map":[ 0.0 , 0.0, 0.0],
                                "move":[ 0.0, 1.0, 0.0],
                                "target": [0.0,0.0,0.0],
-                               "target_def": [0.0,0.0,0.0]}
+                               "target_def": [0.0,0.0,0.0],
+                               "stop": [0.0,0.0,0.0]}
 
         self.odom_pose = None
         self.odom_velocity = None
@@ -352,6 +353,8 @@ class RobomasterNode(Node):
 
     def compute_all(self):
 
+        # TODO: FIGURE OUT HOW TO PLOT ALL THE COMPONENTS AND ITERATIONS
+
         max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
         _, ax = plt.subplots()
@@ -407,7 +410,12 @@ class RobomasterNode(Node):
         if type(result) is not type("hello"):
             nearest, position, walkable, vertical_delta, horizontal_delta = result
         else:
-            self.state = "done"
+            self.state = "stop"
+            ax.set_title("map" + str(self.current_map))
+            self.current_map += 1
+            plt.ion()
+            plt.show(block = False)
+            plt.pause(interval = 2)
             return
 
 
@@ -611,7 +619,9 @@ def select_route(binary):
             if np.all(np.asarray(walkable) == False):
                 print("KEEP SEARCHING CANDIDATES")
                 plausible_pos.remove(nearest)
-                
+                if len(plausible_pos) == 0:
+                    print("WE HAVE MAPPED EVERYTHING")
+                    return "Mapped_All"
             else: 
                 print("STOP LOOPING: CANDIDATE FOUND")
                 keep_looping = False
