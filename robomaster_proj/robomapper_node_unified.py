@@ -622,6 +622,8 @@ def select_route(binary):
         #TODO reloop polausible without the nearest in case all walkable are false
         if np.all(walkable == False):
             plausible_pos = plausible_pos.remove(nearest)
+        else: 
+            keep_looping = False
 
         
 
