@@ -404,6 +404,7 @@ class RobomasterNode(Node):
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
         print(corrected_grid)
+        
 
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
