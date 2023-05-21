@@ -2,25 +2,21 @@ import rclpy
 from rclpy.node import Node
 import tf_transformations
 from std_msgs.msg import String
-
-import numpy as np
-
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
-
+import numpy as np
 import sys
-
 import math
-
 import time
-
 import random
 
+
 # TODO: 
-# - Get nearest visited point rahter than unknown
+# - ensure that the angle after mapping is 0
+# - pid to target position
 # - stress test with various rooms
 # - embellish map maybe with 3d stuff
 
@@ -149,6 +145,9 @@ class RobomasterNode(Node):
         cmd_vel = Twist()
 
         if self.state == 'scanning' and self.initial_pose is not None:
+            self.xtrav = True
+            self.ytrav = True
+
             angle = self.current_pose[2]*180 / \
                 np.pi if self.current_pose[2] > 0 else 360 + \
                 self.current_pose[2]*180/np.pi
@@ -207,16 +206,16 @@ class RobomasterNode(Node):
 
             if self.counter % 100 == 0:
                 self.get_logger().info(
-                    'Sx:' + str(sx) + ' | Sy:' + str(sy) + ' Fx ' + str(self.target_pos[0]) + "FY" + str(
-                        self.target_pos[1]))
+                    'Sx:' + str(sx) + ' | Sy:' + str(sy) + 
+                    ' Fx ' + str(self.target_pos[0]) + " Fy" + str(self.target_pos[1]))
                 print(" DIR X ", dir_x)
                 print(" DIR Y", dir_y)
 
             if self.target_approach == "UT":
             ### THIS IS FOR UPPER TRIANGULAR
-                if abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                if abs(self.target_pos[1] - sy) > 0.02 and self.ytrav:
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
-                elif abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
+                elif abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
                     self.ytrav = False
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 else:
@@ -227,9 +226,9 @@ class RobomasterNode(Node):
                     self.counter = 0
             elif self.target_approach == "LT":
                 ### THIS IS FOR LOWER TRIANGULAR
-                if abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
+                if abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
-                elif abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                elif abs(self.target_pos[1] - sy) > 0.02 and self.ytrav:
                     self.xtrav = False
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 else:
@@ -403,7 +402,6 @@ class RobomasterNode(Node):
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
         print(corrected_grid)
-        
 
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
@@ -417,11 +415,11 @@ class RobomasterNode(Node):
         print("wall coords amount:", len(coords))
 
         ### GETTING CLOSEST ####
-        print(binary_grid.shape)
         result = select_route(binary_grid)
         if type(result) is not type("hello"):
             nearest, position, walkable, vertical_delta, horizontal_delta = result
         else:
+            print("NOTHING MORE TO MAP, NODE IS STOPPED")
             self.state = "stop"
             ax1.set_title("Current map " + str(self.current_map))
             ax2.set_title("Combined map " + str(self.current_map))
@@ -487,8 +485,7 @@ class RobomasterNode(Node):
 
 # Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
 def unseen_neighbors(binary):
-    # unseen = np.where(binary == "0")
-    unseen = np.where(binary == ".")
+    unseen = np.where(binary == "0")
     x, y = unseen
     plausible_pos = []
     for elem in zip(x, y):
@@ -617,6 +614,13 @@ def get_current_pos(binary):
     position = (px[0],py[0]) # array[int] -> int
     return position
 
+def get_known(point, binary):
+    x, y = point
+    neighbours =  [(x+1,y), (x-1,y), (x,y+1), (x,y-1), (x+1,y+1), (x-1,y-1), (x+1,y-1), (x-1,y+1)]
+    for elem in neighbours:
+        if binary[elem[0], elem[1]] == '.':
+            return elem
+
 
 def select_route(binary):
     position = get_current_pos(binary)
@@ -629,7 +633,10 @@ def select_route(binary):
         while keep_looping:
             
             nearest = min_dist(plausible_pos, position)
-            walkable = check_path(position, nearest, binary)
+
+            nearest_known = get_known(nearest, binary)
+
+            walkable = check_path(position, nearest_known, binary)
 
             if np.all(np.asarray(walkable) == False):
                 print("KEEP SEARCHING CANDIDATES")
@@ -642,12 +649,12 @@ def select_route(binary):
                 keep_looping = False
 
 
-        binary[nearest] = '◎'
+        binary[nearest_known] = '◎'
         print(np.array2string(binary, separator=' ',
                 formatter={'str_kind': lambda x: x}))
         
-        dx = nearest[0]-position[0]
-        dy = nearest[1]-position[1]
+        dx = nearest_known[0]-position[0]
+        dy = nearest_known[1]-position[1]
 
         # THIS MAY FIX DISCRETIZATION
         # BASED ON THE SSUMPTION THAT NUMBERS 
@@ -659,11 +666,11 @@ def select_route(binary):
         print()
         print("array coordinates")
         print("OUR POSITION ﾂ:", position)
-        print("NEAREST POSITION ◎:", nearest)
+        print("NEAREST POSITION ◎:", nearest_known)
         print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
         print("VERTICAL TRASLATION (rounded up):", dx)
         print("HORIZONTAL TRASLATION (rounded up):", dy)
-        return nearest, position, walkable, dx, dy
+        return nearest_known, position, walkable, dx, dy
     
     return "Mapped_All"
 
