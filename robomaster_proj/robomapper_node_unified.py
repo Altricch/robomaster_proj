@@ -41,6 +41,8 @@ class RobomasterNode(Node):
         self.initial_pose = None
         self.current_pose = None
         self.target_pose = None
+        
+        self.target_approach = None
 
         ### CHRIS
         self._delt_target_pose = None
@@ -146,8 +148,8 @@ class RobomasterNode(Node):
             cmd_vel.angular.z = rot_step
 
             if self.counter % 10 == 0 and self.range_f > 0:
-                self.get_logger().info(
-                    'angle:' + str(angle) + ' | range:' + str(round(self.range_f, 2)))
+                # self.get_logger().info(
+                #     'angle:' + str(angle) + ' | range:' + str(round(self.range_f, 2)))
                 self.points.append([self.range_f, self.current_pose[2]])
 
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
@@ -202,28 +204,30 @@ class RobomasterNode(Node):
                 print(" DIR X ", dir_x)
                 print(" DIR Y", dir_y)
 
+            if self.target_approach == "UT":
             ### THIS IS FOR UPPER TRIANGULAR
-            if abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
-                self.state_dict["target"] = [0.0, dir_y, 0.0]
-            elif abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
-                self.ytrav = False
-                self.state_dict["target"] = [dir_x, 0.0, 0.0]
-                # print("SY ", sy)
-            else:
-                self.xtrav = False
-                self.state = "map"
-
-            ### THIS IS FOR LOWER TRIANGULAR
-            # if abs(self.target_pos[0] - sx) > 0.005 and self.xtrav:
-            #     self.state_dict["target"] = [dir_x, 0.0, 0.0]
-            #     # print("SY ", sy)
-            # elif abs(self.target_pos[1] - sy) > 0.005 and self.ytrav:
-            #     self.xtrav = False
-            #     self.state_dict["target"] = [0.0, dir_y, 0.0]
-            # else:
-            #     self.ytrav = False
-            #     self.state = "map"
-        ###
+                if abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                    self.state_dict["target"] = [0.0, dir_y, 0.0]
+                elif abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
+                    self.ytrav = False
+                    self.state_dict["target"] = [dir_x, 0.0, 0.0]
+                else:
+                    self.xtrav = False
+                    self.state = "scanning"
+                    self.initial_pose = None
+                    self.counter = 0
+            elif self.target_approach == "LT":
+                ### THIS IS FOR LOWER TRIANGULAR
+                if abs(self.target_pos[0] - sx) > 0.01 and self.xtrav:
+                    self.state_dict["target"] = [dir_x, 0.0, 0.0]
+                elif abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                    self.xtrav = False
+                    self.state_dict["target"] = [0.0, dir_y, 0.0]
+                else:
+                    self.ytrav = False
+                    self.state = "scanning"
+                    self.initial_pose = None
+                    self.counter = 0
 
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
@@ -242,7 +246,6 @@ class RobomasterNode(Node):
 
         visited = []
         wall = []
-        discrete = self.discrete
 
         for dist, theta in self.points:
     
@@ -252,7 +255,7 @@ class RobomasterNode(Node):
             if dist < self.range_limit:
                 wall.append([x1, y1])
 
-            map_len_const = discrete  # 0.25
+            map_len_const = self.discrete  # 0.25
             step = map_len_const
             while (step < dist):
                 x_mid = x0 + step * np.cos(theta)
@@ -278,7 +281,7 @@ class RobomasterNode(Node):
         return max_x, min_x, max_y, min_y, visited, wall
 
     # given offset given point coordinates by a given amount
-    def comp_offset(self, min_x, min_y, points, scale_x, scale_y):
+    def comp_offset(self, min_x, min_y, points, scale):
 
         # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
         offset_points = []
@@ -291,11 +294,8 @@ class RobomasterNode(Node):
             y += min_y
 
             # scale points into coordinate system
-            x /= scale_x
-            y /= scale_y
-            
-            # x *= scale_x
-            # y *= scale_y
+            x /= scale
+            y /= scale
 
             x = int(x)
             y = int(y)
@@ -362,7 +362,6 @@ class RobomasterNode(Node):
         ax.scatter(x=wall_x, y=wall_y, marker='.', color="red")
 
         # Offset points (put them in a square box)
-        # scaling = self.scaling
         x_delta = max_x - min_x
         y_delta = max_y - min_y
         
@@ -371,22 +370,16 @@ class RobomasterNode(Node):
         
         abs_delta = x_delta if x_delta > y_delta else y_delta
         
-        # scale_x = self.scaling/x_delta
-        # scale_y = self.scaling/y_delta
-
         scale = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
         wall_offset = self.comp_offset(
-            min_x, min_y, wall_points, scale, scale)
+            min_x, min_y, wall_points, scale)
         
         visited_offset = self.comp_offset(
-            min_x, min_y, visited_points, scale, scale)
+            min_x, min_y, visited_points, scale)
 
         # DISCRETIZE INITIAL COORDS
-        # x0 = int((x0 + min_x)*scale_x)
-        # y0 = int((y0 + min_y)*scale_y)
-        
         x0 = int((x0 + min_x)/scale)
         y0 = int((y0 + min_y)/scale)
 
@@ -420,6 +413,15 @@ class RobomasterNode(Node):
         case1 = walkable[0] # Move vertically first then horizontally
         case2 = walkable[1] # Move horizontally first then vertically
         case3 = walkable[2] # Move diagonally first then either vertically or horizontally
+
+        if case1:
+            self.target_approach = "UT"
+        elif case2:
+            self.target_approach = "LT"
+        else:
+            self.target_approach = "Diag"
+            print("DIAGONAL APPROACH NOT IMPLEMENTED YET")
+            self.target_approach = "UT"
 
         # self.state = 'move'
         ax.set_title("map1")
@@ -581,28 +583,6 @@ def check_path(current_pos, target_pos, binary):
 
 # Retrieves from the array the position we currenly have
 def get_current_pos(binary):
-
-    # binary =   np.array([['0', '0', '0', '0', '0', '0', '0', '0', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x'],
-    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['0', '0', '0', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '0', '0', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '0', '0', '0', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '0', '.', 'x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['0', '.', '.', '.', '0', '.', '.', '.', '.', '.', 'シ', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', '.', 'x'],
-    #                     ['x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x', 'x']])
-
     px,py = np.where(binary == 'ﾂ')
     position = (px[0],py[0]) # array[int] -> int
     return position
@@ -614,18 +594,16 @@ def select_route(binary):
     keep_looping = True
     plausible_pos = unseen_neighbors(binary)
 
-    ## TODO: GET NEXT PLASIBLE IN THE EVENT WALKABLES ARE ALL FALSE
     while keep_looping:
         
         nearest = min_dist(plausible_pos, position)
         walkable = check_path(position, nearest, binary)
 
-        #TODO reloop polausible without the nearest in case all walkable are false
         if np.all(np.asarray(walkable) == False):
-            print("KEEP LOOPING BABY")
+            print("KEEP SEARCHING CANDIDATES")
             plausible_pos.remove(nearest)
         else: 
-            print("STOP LOOPING BABY")
+            print("STOP LOOPING: CANDIDATE FOUND")
             keep_looping = False
 
 
