@@ -38,6 +38,7 @@ class RobomasterNode(Node):
         self.target_pose = None
         
         self.target_approach = None
+        self.current_map = 0
 
         ### CHRIS
         self._delt_target_pose = None
@@ -423,7 +424,7 @@ class RobomasterNode(Node):
             self.target_approach = "UT"
 
         # self.state = 'move'
-        ax.set_title("map1")
+        ax.set_title("map",self.current_map+1)
         plt.ion()
         plt.show(block = False)
         plt.pause(interval = 2)
