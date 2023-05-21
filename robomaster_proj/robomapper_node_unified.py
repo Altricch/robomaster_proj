@@ -478,7 +478,7 @@ def min_dist(plausible_cand, current_pos):
             dist = temp_dist
             nearest = cand
 
-    return nearest
+    return nearest 
 
 # Checks whether a position is a candidate
 def candidate(binary, elem):
@@ -610,9 +610,21 @@ def get_current_pos(binary):
 
 def select_route(binary):
     position = get_current_pos(binary)
+
+    keep_looping = True
     plausible_pos = unseen_neighbors(binary)
-    nearest = min_dist(plausible_pos, position)
-    walkable = check_path(position, nearest, binary)
+
+    while keep_looping:
+        
+        nearest = min_dist(plausible_pos, position)
+        walkable = check_path(position, nearest, binary)
+
+        #TODO reloop polausible without the nearest in case all walkable are false
+        if np.all(walkable == False):
+            plausible_pos = plausible_pos.remove(nearest)
+
+        
+
 
     ## TODO: GET NEXT PLASIBLE IN THE EVENT WALKABLES ARE ALL FALSE
 
