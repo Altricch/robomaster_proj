@@ -22,7 +22,8 @@ setup(
         'console_scripts': [
             'robomaster_node = robomaster_proj.robomaster_node:main',
             'robomapper_node = robomaster_proj.robomapper_node:main',
-            'robomapper_node2 = robomaster_proj.robomapper_node_unified:main'
+            'robomapper_node2 = robomaster_proj.robomapper_node_unified:main',
+            'robomaster_old = robomaster_proj.robomaster_1approach_node:main'
         ],
     },
 )
