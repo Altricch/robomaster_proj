@@ -357,6 +357,7 @@ class RobomasterNode(Node):
         x = points[:, 0]
         y = points[:, 1]
         ax.scatter(x, y, marker=marker, color=color)
+        ax.set_aspect('equal')
 
     def compute_all(self):
 
