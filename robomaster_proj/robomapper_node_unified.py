@@ -7,6 +7,8 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.colors import TwoSlopeNorm
 import numpy as np
 import sys
 import math
@@ -403,7 +405,21 @@ class RobomasterNode(Node):
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
         print(corrected_grid)
+        
+        
+        # HEATMAP PLOT
+        fig, ax_pcolormesh = plt.subplots()
+        
+        vmin = np.amin(corrected_grid)
+        vmax = np.amax(corrected_grid)
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+        
+        c = ax_pcolormesh.pcolormesh(corrected_grid, cmap='RdBu_r', norm=norm)
+        fig.colorbar(c, ax=ax_pcolormesh)
+        ax_pcolormesh.set_ylim(ax_pcolormesh.get_ylim()[::-1])        # invert the axis
+        ax_pcolormesh.xaxis.tick_top()  # and move the X-Axis  
 
+        
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
 
