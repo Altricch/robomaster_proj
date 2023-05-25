@@ -355,11 +355,12 @@ class RobomasterNode(Node):
             x, y = point            # inverted points to conform to array logic
             grid[y][x] += 1
 
+        # only map internal points and do not overlap with wall
         internal_only = set(visited_offset).difference(set(wall_offset))
 
         for point in visited_offset:
             if point in internal_only:
-                x, y = point  # inverted points to conforn to array logic
+                x, y = point  # inverted points to conform to array logic
                 grid[y][x] -= 1
 
         return grid.astype(int)
