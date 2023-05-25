@@ -7,6 +7,7 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import numpy as np
 import sys
 import math
@@ -40,9 +41,13 @@ class RobomasterNode(Node):
         self.initial_pose = None
         self.current_pose = None
         self.target_pose = None
+
+        self.tranlsations = []          # list of triples (last deltax, last deltay, movementtype)
         
         self.target_approach = None
         self.current_map = 0
+
+        self.resetting = False          #If we have to backtrack to earlier mapping position
 
         ### CHRIS
         self._delt_target_pose = None
@@ -199,12 +204,14 @@ class RobomasterNode(Node):
 
             self.state = "target"
 
+            #self.tranlsations.append((d_x, d_y, self.target_approach))
+
         if self.state == "target":
             sx, sy, _ = self.current_pose
             dir_x = np.sign(self.delt_target_pose[0])
             dir_y = np.sign(self.delt_target_pose[1])
 
-            if self.counter % 100 == 0:
+            if self.counter % 1000 == 0:
                 self.get_logger().info(
                     'Sx:' + str(sx) + ' | Sy:' + str(sy) + 
                     ' Fx ' + str(self.target_pos[0]) + " Fy" + str(self.target_pos[1]))
@@ -220,7 +227,9 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 else:
                     self.xtrav = False
-                    self.state = "scanning"
+                    self.state = "scanning" #if self.resetting == False else "done"
+                    self.resetting = False
+
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
@@ -233,7 +242,9 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 else:
                     self.ytrav = False
-                    self.state = "scanning"
+                    self.state = "scanning" #if self.resetting == False else "done"
+                    self.resetting = False
+
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
@@ -293,7 +304,8 @@ class RobomasterNode(Node):
 
     # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scale):
-
+        max_x = 0
+        max_y = 0
         # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
         offset_points = []
 
@@ -308,26 +320,39 @@ class RobomasterNode(Node):
             x /= scale
             y /= scale
 
-            x = int(x)
-            y = int(y)
+            x = int(round(x,0))
+            y = int(round(y,0))
 
             # TOBE FIXED LATER
-            if x == self.scaling:
-                x = self.scaling - 1
-            if y == self.scaling:
-                y = self.scaling - 1
+            # if x >= self.scaling:
+            #     print(x, "x out of range")
+            #     x = self.scaling - 1
+            # if y >= self.scaling:
+            #     print(y, "y out of range")
+            #     y = self.scaling - 1
+            if x > max_x:
+                max_x = x
+            if y > max_y:
+                max_y = y
 
             offset_points.append((x, y))
 
-        return offset_points
+        return offset_points, max_x, max_y
 
     # Populates a grid with cumulative statistics according to discretized votes
     # for both wall points (postiive values) and visited points (negative values)
 
-    def pop_grid(self, wall_offset, visited_offset):
-        grid = np.zeros((self.scaling, self.scaling))
+    def pop_grid(self, wall_offset, visited_offset, max_x, max_y, square_grid = False):
+
+        if square_grid:
+            square_dimension = max(max_x, max_y) +1
+            grid = np.zeros((square_dimension, square_dimension))
+        else:
+            grid = np.zeros((max_y+1, max_x+1))
+
+
         for point in wall_offset:
-            x, y = point            # inverted points to conforn to array logic
+            x, y = point            # inverted points to conform to array logic
             grid[y][x] += 1
 
         internal_only = set(visited_offset).difference(set(wall_offset))
@@ -359,6 +384,7 @@ class RobomasterNode(Node):
         ax.scatter(x, y, marker=marker, color=color)
 
     def compute_all(self):
+        reverting_pos = False
 
         max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
@@ -368,11 +394,11 @@ class RobomasterNode(Node):
         ax2.scatter(x0, y0, marker='D')
         
         #plot of the map      
-        self.map_plot(visited_points, ax1, marker='+', color="silver")
-        self.map_plot(wall_points, ax1, marker='.', color="lightcoral")
+        self.map_plot(visited_points, ax1, marker='.', color="silver")
+        self.map_plot(wall_points, ax1, marker='+', color="lightcoral")
         
-        self.map_plot(self.global_visited_points, ax2, marker='+', color="gray")
-        self.map_plot(self.global_wall_points, ax2, marker='.', color="red")
+        self.map_plot(self.global_visited_points, ax2, marker='.', color="gray")
+        self.map_plot(self.global_wall_points, ax2, marker='+', color="red")
 
         # Offset points (put them in a square box)
         x_delta = max_x - min_x
@@ -386,18 +412,22 @@ class RobomasterNode(Node):
         scale = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
-        wall_offset = self.comp_offset(
+        wall_offset, max_x_w, max_y_w = self.comp_offset(
             min_x, min_y, self.global_wall_points, scale)
         
-        visited_offset = self.comp_offset(
+        visited_offset, max_x_v, max_y_v = self.comp_offset(
             min_x, min_y, self.global_visited_points, scale)
 
         # DISCRETIZE INITIAL COORDS
-        x0 = int((x0 + min_x)/scale)
-        y0 = int((y0 + min_y)/scale)
+        x0 = int(round((x0 + min_x)/scale, 0))
+        y0 = int(round((y0 + min_y)/scale, 0))
+
+        # Max index observed for grid creation
+        max_x = max(max_x_v,max_x_w)
+        max_y = max(max_y_v,max_y_w)
 
         # Get cumulative grid with votes
-        grid = self.pop_grid(wall_offset, visited_offset)
+        grid = self.pop_grid(wall_offset, visited_offset, max_x, max_y, square_grid=True)
 
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
@@ -419,15 +449,51 @@ class RobomasterNode(Node):
         if type(result) is not type("hello"):
             nearest, position, walkable, vertical_delta, horizontal_delta = result
         else:
-            print("NOTHING MORE TO MAP, NODE IS STOPPED")
-            self.state = "stop"
-            ax1.set_title("Current map " + str(self.current_map))
-            ax2.set_title("Combined map " + str(self.current_map))
-            self.current_map += 1
-            plt.ion()
-            plt.show(block = False)
-            plt.pause(interval = 2)
-            return
+
+            ### New solution, go back to previous pos
+            ### once there do not map but simply search for new candidates
+            ### if no more previous poses available or reachable, stop node
+            if self.tranlsations is not []:
+                self.resetting = True
+                print("NO REACHABLE CANDIDATE, REVERTING TO PREVIOUS MAPPING POSE")
+                position = get_current_pos(binary_grid)
+                tx, ty, approach = self.tranlsations.pop()
+                #INVERSION of direction
+                dfx = -tx
+                dfy = -ty
+                self.target_approach = "LT" if approach == "UT" else "UT"
+                self.delt_target_pose = (dfx , dfy, 0)
+                
+                print("in world scale")
+                print("DFX", dfx)
+                print("DFY", dfy)
+                print("approach", self.target_approach)
+
+                ax1.set_title("Current map " + str(self.current_map))
+                ax2.set_title("Combined map " + str(self.current_map))
+                self.current_map += 1
+                plt.ion()
+                plt.show(block = False)
+                plt.pause(interval = 2)
+
+                print("now after block")
+
+                self.state = "target_def"
+                return 
+
+            else:
+                print("NO REACHABLE POINTS, NODE IS STOPPED")
+                self.state = "stop"
+                ax1.set_title("Current map " + str(self.current_map))
+                ax2.set_title("Combined map " + str(self.current_map))
+                self.current_map += 1
+                plt.ion()
+
+                #animation = FuncAnimation(fig, update, frames=len(self.points), interval=200, blit=True)
+
+                plt.show(block = False)
+                plt.pause(interval = 2)
+                return
 
 
         # inverted x & y
@@ -457,7 +523,7 @@ class RobomasterNode(Node):
         plt.pause(interval = 2)
 
         print("now after block")
-        self.state = 'move'
+        #self.state = 'move'
 
         print("inversion of x and y")
         print("Start X ", sx , " Start Y ", sy)
@@ -467,6 +533,8 @@ class RobomasterNode(Node):
         # Inverted
         dfx = horizontal_delta * scale 
         dfy = -vertical_delta * scale
+
+        self.tranlsations.append([dfx,dfy,self.target_approach])
 
         print("in world scale")
         print("DFX", dfx)
@@ -606,7 +674,7 @@ def check_path(current_pos, target_pos, binary):
         if elem == "x":
             Diagonal = False
 
-    return UT, LT, Diagonal
+    return UT, LT, False # Diagonal not implemented
 
 # Retrieves from the array the position we currenly have
 def get_current_pos(binary):
@@ -656,10 +724,9 @@ def select_route(binary):
         dx = nearest_known[0]-position[0]
         dy = nearest_known[1]-position[1]
 
-        # THIS MAY FIX DISCRETIZATION
+        # THIS FIXES DISCRETIZATION
         # BASED ON THE SSUMPTION THAT NUMBERS 
         # HAVE BEEN ROUNDED DOWN EARLIER
-        # MAY CAUSE PROBLEMS FOR 0 VALUES
         dx += np.sign(dx)
         dy += np.sign(dy)
 
