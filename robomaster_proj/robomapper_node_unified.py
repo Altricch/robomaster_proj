@@ -233,7 +233,8 @@ class RobomasterNode(Node):
             
 
             plt.ion()
-            plt.show(block = False)
+            plt.show()
+            # plt.show(block = False)
             plt.pause(interval = 0.0001)
 
         if self.state == 'done':
@@ -587,6 +588,7 @@ class RobomasterNode(Node):
                 self.current_map += 1
                 plt.ion()
                 plt.show()
+                # plt.close()
                 # plt.show(block = False)
                 # plt.pause(interval = 2)
 
@@ -606,7 +608,8 @@ class RobomasterNode(Node):
 
                 #animation = FuncAnimation(fig, update, frames=len(self.points), interval=200, blit=True)
 
-                plt.show(block = False)
+                plt.show()
+                # plt.show(block = False)
                 plt.pause(interval = 2)
                 return
 
@@ -636,8 +639,10 @@ class RobomasterNode(Node):
 
         self.current_map += 1
         plt.ion()
-        plt.show(block = False)
+        plt.show()
+        # plt.show(block = False)
         plt.pause(interval = 2)
+        # plt.close()
 
         print("now after block")
 
