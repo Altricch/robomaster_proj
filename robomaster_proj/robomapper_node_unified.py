@@ -300,7 +300,7 @@ class RobomasterNode(Node):
         print("X min:" + str(self.min_x) + " | max:" + str(self.max_x))
         print("Y min:" + str(self.min_y) + " | max:" + str(self.max_y))
 
-        return self.max_x, self.min_x, self.max_y, self.min_y, visited, wall
+        return visited, wall
 
     # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scale):
@@ -370,12 +370,12 @@ class RobomasterNode(Node):
     # takes the cummulative grid and transforms it into an binary representation.
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise.
     # Lastly, we cap the cumulative probability for both states according to observations
-    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=2, cap_visited=-2, print_corrected = False):
+    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=2, cap_visited=-2, print_cumulative = False, print_binary = True):
         # binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
         # binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # This is us
 
         # For visualization purposes
-        if print_corrected:
+        if print_cumulative:
             print(np.flip(acc_grid, axis=0))
 
         binary_grid = np.where(acc_grid >= cap_wall, 'x',
@@ -383,6 +383,11 @@ class RobomasterNode(Node):
         binary_grid[y0, x0] = 'ﾂ'  # This is us
 
         binary_grid = np.flip(binary_grid, axis=0)
+
+        # print(binary_grid)
+        if print_binary:
+            print(np.array2string(binary_grid, separator=' ',
+                formatter={'str_kind': lambda x: x}))
 
         return binary_grid
     
@@ -395,14 +400,15 @@ class RobomasterNode(Node):
     def compute_all(self):
         reverting_pos = False
 
-        max_x, min_x, max_y, min_y, visited_points, wall_points = self.pop_visited_wall_p()
+        visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
         
+        # Self Mapping
         _, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 10))
         ax1.scatter(x0, y0, marker='D')
         ax2.scatter(x0, y0, marker='D')
         
-        #plot of the map      
+        # Plot of the map      
         self.map_plot(visited_points, ax1, marker='.', color="silver")
         self.map_plot(wall_points, ax1, marker='+', color="lightcoral")
         
@@ -410,44 +416,36 @@ class RobomasterNode(Node):
         self.map_plot(self.global_wall_points, ax2, marker='+', color="red")
 
         # Offset points (put them in a square box)
-        x_delta = max_x - min_x
-        y_delta = max_y - min_y
-        
-        min_x = abs(min_x)
-        min_y = abs(min_y)
+        x_delta = self.max_x - self.min_x
+        y_delta = self.max_y - self.min_y
+
+        min_x = abs(self.min_x)
+        min_y = abs(self.min_y)
         
         abs_delta = x_delta if x_delta > y_delta else y_delta
         
         scale = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
-        wall_offset, max_x_w, max_y_w = self.comp_offset(
+        wall_offset, max_x_index_w, max_y_index_w = self.comp_offset(
             min_x, min_y, self.global_wall_points, scale)
         
-        visited_offset, max_x_v, max_y_v = self.comp_offset(
+        visited_offset, max_x_index_v, max_y_index_v = self.comp_offset(
             min_x, min_y, self.global_visited_points, scale)
 
-        # DISCRETIZE INITIAL COORDS
-        x0 = int(round((x0 + min_x)/scale, 0))
-        y0 = int(round((y0 + min_y)/scale, 0))
+        # Discretize Inital Pos
+        x0_d = int(round((x0 + min_x)/scale, 0))
+        y0_d = int(round((y0 + min_y)/scale, 0))
 
         # Max index observed for grid creation
-        max_x = max(max_x_v,max_x_w)
-        max_y = max(max_y_v,max_y_w)
+        max_x_index = max(max_x_index_v,max_x_index_w)
+        max_y_index = max(max_y_index_v,max_y_index_w)
 
         # Get cumulative grid with votes
-        grid = self.pop_grid(wall_offset, visited_offset, max_x, max_y, square_grid=True)
-
-        # Flip the grid and print cummulative grid
-        #corrected_grid = np.flip(grid, axis=0)
-        #print(corrected_grid)
+        grid = self.pop_grid(wall_offset, visited_offset, max_x_index, max_y_index, square_grid=True)
 
         # Get binary grid and print
-        binary_grid = self.pop_binary_grid(grid, x0, y0, print_corrected = True)
-
-        # print(binary_grid)
-        print(np.array2string(binary_grid, separator=' ',
-              formatter={'str_kind': lambda x: x}))
+        binary_grid = self.pop_binary_grid(grid, x0_d, y0_d, print_binary = False, print_cumulative = True)
 
         # check how many points are identified as wall
         coords = np.argwhere(binary_grid == 'x')
@@ -706,6 +704,8 @@ def select_route(binary):
     plausible_pos = unseen_neighbors(binary)
     if len(plausible_pos) == 0:
         print("WE HAVE MAPPED EVERYTHING")
+        print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
+        return "Mapped_All"
     else:
         while keep_looping:
             
@@ -720,6 +720,7 @@ def select_route(binary):
                 plausible_pos.remove(nearest)
                 if len(plausible_pos) == 0:
                     print("WE HAVE MAPPED EVERYTHING")
+                    print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
                     return "Mapped_All"
             else: 
                 print("STOP LOOPING: CANDIDATE FOUND")
