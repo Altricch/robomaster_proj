@@ -1,13 +1,12 @@
 import rclpy
 from rclpy.node import Node
 import tf_transformations
-from std_msgs.msg import String
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+import matplotlib as mpl
 import numpy as np
 import sys
 import math
@@ -61,6 +60,9 @@ class RobomasterNode(Node):
         self.min_y = 0.0
         self.max_y = 0.0
 
+        self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
+        # _, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(5, 10))
+
         self.counter = 0
         self.range_f = -1
         self.distance_travelled = 0
@@ -70,6 +72,7 @@ class RobomasterNode(Node):
         
         self.global_visited_points = []
         self.global_wall_points = []
+        self.global_line_visited = []
 
         self.state = "scanning"
 
@@ -179,15 +182,48 @@ class RobomasterNode(Node):
         self.vel_publisher.publish(cmd_vel)
 
     def timer_callback(self):
+
+        if self.current_pose == None:
+            return
+
         self.counter += 1
 
         self.rotate_360(0.2)
 
         cmd_vel = Twist()
 
+        self.pop_visited_wall_p_2()
+
+        if len(self.global_line_visited) > 0 and self.state == 'scanning':
+
+            x0, y0, _ = self.current_pose
+
+            self.ax_continue.clear()
+
+            global_line_visited = np.array(self.global_line_visited)
+
+            X = global_line_visited[:,:, 0].T
+            Y = global_line_visited[:,:, 1].T
+
+            # draw a line
+            plt.plot(X, Y, color="green")
+
+            self.ax_continue.scatter(x0, y0, marker='D')
+            self.ax_continue.scatter(x0, y0, marker='D')
+
+            self.ax_continue.set_aspect('equal')
+
+            plt.ion()
+            plt.show(block = False)
+            plt.pause(interval = 0.00001)
+
+            self.global_line_visited = []
+
+
         if self.state == 'done':
 
             if len(self.points) >= 2:
+                plt.close(self.fig_continue)
                 self.compute_all()
             else:
                 print("ERROR, NOT ENOUGH POINTS")
@@ -208,8 +244,6 @@ class RobomasterNode(Node):
             self.target_pos = fx, fy, 0
 
             self.state = "target"
-
-            #self.tranlsations.append((d_x, d_y, self.target_approach))
 
         if self.state == "target":
             sx, sy, _ = self.current_pose
@@ -302,6 +336,21 @@ class RobomasterNode(Node):
 
         return visited, wall
 
+
+    def pop_visited_wall_p_2(self):
+
+        if self.current_pose == None:
+            return
+
+        x0, y0, _ = self.current_pose
+
+        for dist, theta in self.points:
+            x1 = x0 + dist * np.cos(theta)
+            y1 = y0 + dist * np.sin(theta)
+
+            self.global_line_visited.append([[x0, y0], [x1, y1]])
+
+
     # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scale):
         max_x = 0
@@ -370,7 +419,7 @@ class RobomasterNode(Node):
     # takes the cummulative grid and transforms it into an binary representation.
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise.
     # Lastly, we cap the cumulative probability for both states according to observations
-    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=2, cap_visited=-2, print_cumulative = False, print_binary = True):
+    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=1, cap_visited=-2, print_cumulative = False, print_binary = True):
         # binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
         # binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # This is us
 
@@ -396,6 +445,8 @@ class RobomasterNode(Node):
         x = points[:, 0]
         y = points[:, 1]
         ax.scatter(x, y, marker=marker, color=color)
+        ax.set_aspect('equal')
+
 
     def compute_all(self):
         reverting_pos = False
@@ -444,6 +495,36 @@ class RobomasterNode(Node):
         # Get cumulative grid with votes
         grid = self.pop_grid(wall_offset, visited_offset, max_x_index, max_y_index, square_grid=True)
 
+        def normalize_value(x):
+            # scaler = pre.MinMaxScaler(feature_range=(-1, 1))  # Define the range as 0 to 1
+            # x = np.array(x).reshape(-1, 1)  # Reshape the data to a 2D array if it's 1D
+            # normalized = scaler.fit_transform(x)  # Normalize the values
+            # normalized[x == 0] = 0
+
+            norm = x.copy().astype(float)
+
+            norm[x<0] /= - (x[x<0].min())
+            norm[x>0] /= x[x>0].max()
+
+            return norm
+
+        print("type corrected_grid ", type(grid))
+        print("shape corrected_grid ", grid.shape)
+
+        normalized_data = normalize_value(grid)
+        print("type normalize_value ", type(normalized_data))
+        print("shape normalize_value ", normalized_data.shape)
+        print(normalized_data)
+
+
+        # HEATMAP PLOT
+        fig_pcolormesh, ax_pcolormesh = plt.subplots()
+        c = ax_pcolormesh.pcolormesh(normalized_data, cmap='RdBu_r')
+        fig_pcolormesh.colorbar(c, ax=ax_pcolormesh)
+        ax_pcolormesh.set_ylim(ax_pcolormesh.get_ylim()[::-1])        # invert the axis
+        ax_pcolormesh.xaxis.tick_top()  # and move the X-Axis
+
+
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(grid, x0_d, y0_d, print_binary = False, print_cumulative = True)
 
@@ -478,6 +559,7 @@ class RobomasterNode(Node):
 
                 ax1.set_title("Current map " + str(self.current_map))
                 ax2.set_title("Combined map " + str(self.current_map))
+                ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
                 self.current_map += 1
                 plt.ion()
                 plt.show(block = False)
@@ -493,6 +575,7 @@ class RobomasterNode(Node):
                 self.state = "stop"
                 ax1.set_title("Current map " + str(self.current_map))
                 ax2.set_title("Combined map " + str(self.current_map))
+                ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
                 self.current_map += 1
                 plt.ion()
 
@@ -524,13 +607,14 @@ class RobomasterNode(Node):
         # self.state = 'move'
         ax1.set_title("Current map " + str(self.current_map))
         ax2.set_title("Combined map " + str(self.current_map))
+        ax_pcolormesh.set_title("Heatmap " +str(self.current_map))
+
         self.current_map += 1
         plt.ion()
         plt.show(block = False)
         plt.pause(interval = 2)
 
         print("now after block")
-        #self.state = 'move'
 
         print("inversion of x and y")
         print("Start X ", sx , " Start Y ", sy)
@@ -753,7 +837,7 @@ def select_route(binary):
 
 
 def main():
-    np.set_printoptions(linewidth=100, legacy="1.13")
+    np.set_printoptions(linewidth=150, legacy="1.13")
     # Initialize the ROS client library
     rclpy.init(args=sys.argv)
 
