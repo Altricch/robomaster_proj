@@ -60,8 +60,12 @@ class RobomasterNode(Node):
         self.min_y = 0.0
         self.max_y = 0.0
 
-        self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
+        self.fig_continue = None
+        self.ax_continue = None
+        
+        
         self.realtime = True
+        self.create_fig = True
         # _, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(5, 10))
 
         self.counter = 0
@@ -168,6 +172,7 @@ class RobomasterNode(Node):
             angle = round(angle + (self.spins * 360.00), 2)
             cmd_vel.angular.z = rot_step
 
+            
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
                 self.spins += 1
                 self.state = "done"
@@ -180,14 +185,12 @@ class RobomasterNode(Node):
                 self.points.append([self.range_f, self.current_pose[2]])
 
                 
-                if self.realtime and self.current_pose is not None:
-                    x0, y0, t = self.current_pose
-                    x1 = x0 + self.range_f * np.cos(t)
-                    y1 = y0 + self.range_f * np.sin(t)
+                # if self.realtime and self.current_pose is not None:
+                x0, y0, t = self.current_pose
+                x1 = x0 + self.range_f * np.cos(t)
+                y1 = y0 + self.range_f * np.sin(t)
 
-                    self.global_line_visited.append([[x0, y0], [x1, y1]])
-
-            
+                self.global_line_visited.append([[x0, y0], [x1, y1]])
 
             self.previous_angle = angle
 
@@ -207,6 +210,10 @@ class RobomasterNode(Node):
         # self.pop_visited_wall_p_2()
 
         if len(self.global_line_visited) > 0 and self.realtime:
+            
+            if self.create_fig:
+                self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
+                self.create_fig = False
 
             x0, y0, _ = self.current_pose
 
@@ -223,6 +230,7 @@ class RobomasterNode(Node):
             self.ax_continue.scatter(x0, y0, marker='D')
 
             self.ax_continue.set_aspect('equal')
+            
 
             plt.ion()
             plt.show(block = False)
@@ -233,8 +241,14 @@ class RobomasterNode(Node):
             if len(self.points) >= 2:
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
-                self.realtime = True
+                print("before compute allrealtime: ", self.realtime)
                 self.compute_all()
+                self.realtime = True
+                print("after compute all realtime: ", self.realtime)
+                self.create_fig = True
+                self.fig_continue = None
+                self.ax_continue = None
+                
             else:
                 print("ERROR, NOT ENOUGH POINTS")
 
@@ -347,18 +361,18 @@ class RobomasterNode(Node):
         return visited, wall
 
 
-    def pop_visited_wall_p_2(self):
+    # def pop_visited_wall_p_2(self):
 
-        if self.current_pose == None:
-            return
+    #     if self.current_pose == None:
+    #         return
 
-        x0, y0, _ = self.current_pose
+    #     x0, y0, _ = self.current_pose
 
-        for dist, theta in self.points:
-            x1 = x0 + dist * np.cos(theta)
-            y1 = y0 + dist * np.sin(theta)
+    #     for dist, theta in self.points:
+    #         x1 = x0 + dist * np.cos(theta)
+    #         y1 = y0 + dist * np.sin(theta)
 
-            self.global_line_visited.append([[x0, y0], [x1, y1]])
+    #         self.global_line_visited.append([[x0, y0], [x1, y1]])
 
 
     # given offset given point coordinates by a given amount
@@ -572,8 +586,9 @@ class RobomasterNode(Node):
                 ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
                 self.current_map += 1
                 plt.ion()
-                plt.show(block = False)
-                plt.pause(interval = 2)
+                plt.show()
+                # plt.show(block = False)
+                # plt.pause(interval = 2)
 
                 print("now after block")
 
