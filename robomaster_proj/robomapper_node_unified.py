@@ -34,7 +34,7 @@ class RobomasterNode(Node):
         self.scaling = 20               # grid size
         self.speed_damper = 5.0         # the higher the slower
 
-        self.discrete = 0.2             # computation distance of walkable points
+        self.discrete = 0.25             # computation distance of walkable points
 
         self.test = 1
 
@@ -42,7 +42,7 @@ class RobomasterNode(Node):
         self.current_pose = None
         self.target_pose = None
 
-        self.tranlsations = []          # list of triples (last deltax, last deltay, movementtype)
+        self.translations = []          # list of triples (last deltax, last deltay, movementtype)
         
         self.target_approach = None
         self.current_map = 0
@@ -55,6 +55,11 @@ class RobomasterNode(Node):
         self.xtrav = True
         self.ytrav = True
         ###
+
+        self.min_x = 0.0
+        self.max_x = 0.0
+        self.min_y = 0.0
+        self.max_y = 0.0
 
         self.counter = 0
         self.range_f = -1
@@ -259,11 +264,6 @@ class RobomasterNode(Node):
         
         x0, y0, _ = self.current_pose
 
-        min_x = 0
-        max_x = 0
-        min_y = 0
-        max_y = 0
-
         visited = []
         wall = []
 
@@ -285,22 +285,22 @@ class RobomasterNode(Node):
                 self.global_visited_points.append([x_mid, y_mid])
                 step += map_len_const
 
-            if x1 > max_x:
-                max_x = round(x1, 2)
-            elif x1 < min_x:
-                min_x = round(x1, 2)
+            if x1 > self.max_x:
+                self.max_x = round(x1, 2)
+            elif x1 < self.min_x:
+                self.min_x = round(x1, 2)
 
-            if y1 > max_y:
-                max_y = y1
-            elif y1 < min_y:
-                min_y = y1
+            if y1 > self.max_y:
+                self.max_y = round(y1, 2)
+            elif y1 < self.min_y:
+                self.min_y = round(y1, 2)
 
         self.state = 'map'
 
-        print("X min:" + str(min_x) + " | max:" + str(max_x))
-        print("Y min:" + str(min_y) + " | max:" + str(max_y))
+        print("X min:" + str(self.min_x) + " | max:" + str(self.max_x))
+        print("Y min:" + str(self.min_y) + " | max:" + str(self.max_y))
 
-        return max_x, min_x, max_y, min_y, visited, wall
+        return self.max_x, self.min_x, self.max_y, self.min_y, visited, wall
 
     # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scale):
@@ -344,8 +344,10 @@ class RobomasterNode(Node):
 
     def pop_grid(self, wall_offset, visited_offset, max_x, max_y, square_grid = False):
 
+        print("POP_GRID DIMESNIONS", max_x, max_y)
+
         if square_grid:
-            square_dimension = max(max_x, max_y) +1
+            square_dimension = max(max_x, max_y)+1
             grid = np.zeros((square_dimension, square_dimension))
         else:
             grid = np.zeros((max_y+1, max_x+1))
@@ -368,13 +370,19 @@ class RobomasterNode(Node):
     # takes the cummulative grid and transforms it into an binary representation.
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise.
     # Lastly, we cap the cumulative probability for both states according to observations
-    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=2, cap_visited=-2):
+    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=2, cap_visited=-2, print_corrected = False):
         # binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
         # binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # This is us
 
+        # For visualization purposes
+        if print_corrected:
+            print(np.flip(acc_grid, axis=0))
+
         binary_grid = np.where(acc_grid >= cap_wall, 'x',
                                (np.where(acc_grid <= cap_visited, '.', '0')))
-        binary_grid[binary_grid.shape[0] - y0, x0] = 'ﾂ'  # This is us
+        binary_grid[y0, x0] = 'ﾂ'  # This is us
+
+        binary_grid = np.flip(binary_grid, axis=0)
 
         return binary_grid
     
@@ -431,11 +439,11 @@ class RobomasterNode(Node):
         grid = self.pop_grid(wall_offset, visited_offset, max_x, max_y, square_grid=True)
 
         # Flip the grid and print cummulative grid
-        corrected_grid = np.flip(grid, axis=0)
-        print(corrected_grid)
+        #corrected_grid = np.flip(grid, axis=0)
+        #print(corrected_grid)
 
         # Get binary grid and print
-        binary_grid = self.pop_binary_grid(corrected_grid, x0, y0)
+        binary_grid = self.pop_binary_grid(grid, x0, y0, print_corrected = True)
 
         # print(binary_grid)
         print(np.array2string(binary_grid, separator=' ',
@@ -454,11 +462,11 @@ class RobomasterNode(Node):
             ### New solution, go back to previous pos
             ### once there do not map but simply search for new candidates
             ### if no more previous poses available or reachable, stop node
-            if self.tranlsations is not []:
+            if len(self.translations) != 0:
                 self.resetting = True
                 print("NO REACHABLE CANDIDATE, REVERTING TO PREVIOUS MAPPING POSE")
                 position = get_current_pos(binary_grid)
-                tx, ty, approach = self.tranlsations.pop()
+                tx, ty, approach = self.translations.pop()
                 #INVERSION of direction
                 dfx = -tx
                 dfy = -ty
@@ -535,7 +543,7 @@ class RobomasterNode(Node):
         dfx = horizontal_delta * scale 
         dfy = -vertical_delta * scale
 
-        self.tranlsations.append([dfx,dfy,self.target_approach])
+        self.translations.append([dfx,dfy,self.target_approach])
 
         print("in world scale")
         print("DFX", dfx)
@@ -728,8 +736,8 @@ def select_route(binary):
         # THIS FIXES DISCRETIZATION
         # BASED ON THE SSUMPTION THAT NUMBERS 
         # HAVE BEEN ROUNDED DOWN EARLIER
-        dx += np.sign(dx)
-        dy += np.sign(dy)
+        #dx += np.sign(dx)
+        #dy += np.sign(dy)
 
         print()
         print("array coordinates")
