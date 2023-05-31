@@ -7,6 +7,7 @@ from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+import matplotlib.gridspec as gridspec
 import numpy as np
 import sys
 import math
@@ -66,7 +67,6 @@ class RobomasterNode(Node):
         
         self.realtime = True
         self.create_fig = True
-        # _, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(5, 10))
 
         self.counter = 0
         self.range_f = -1
@@ -224,17 +224,17 @@ class RobomasterNode(Node):
 
         cmd_vel = Twist()
 
-        # self.pop_visited_wall_p_2()
-
         if len(self.global_line_visited) > 0 and self.realtime:
             
             if self.create_fig:
                 self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
+                
                 self.create_fig = False
 
             x0, y0, _ = self.current_pose
 
             self.ax_continue.clear()
+            self.ax_continue.set_title("Realtime map " + str(self.current_map))
 
             global_line_visited = np.array(self.global_line_visited)
             X = global_line_visited[:, :, 0].T
@@ -251,7 +251,6 @@ class RobomasterNode(Node):
 
             plt.ion()
             plt.show()
-            # plt.show(block = False)
             plt.pause(interval = 0.0001)
 
         if self.state == 'done':
@@ -385,21 +384,6 @@ class RobomasterNode(Node):
 
         return visited, wall
 
-
-    # def pop_visited_wall_p_2(self):
-
-    #     if self.current_pose == None:
-    #         return
-
-    #     x0, y0, _ = self.current_pose
-
-    #     for dist, theta in self.points:
-    #         x1 = x0 + dist * np.cos(theta)
-    #         y1 = y0 + dist * np.sin(theta)
-
-    #         self.global_line_visited.append([[x0, y0], [x1, y1]])
-
-
     # given offset given point coordinates by a given amount
     def comp_offset(self, min_x, min_y, points, scale):
         max_x = 0
@@ -498,20 +482,26 @@ class RobomasterNode(Node):
 
 
     def compute_all(self):
-        reverting_pos = False
 
         visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
         
-        # Self Mapping
-        _, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 10))
-        ax1.scatter(x0, y0, marker='D')
-        ax2.scatter(x0, y0, marker='D')
+               
+        gs = gridspec.GridSpec(2,2)
+        figure = plt.figure(figsize=(10, 10))
         
-        # Plot of the map      
+        ax1 = figure.add_subplot(gs[0, 0]) # row 0, col 0
+        ax2 = figure.add_subplot(gs[0, 1])
+        
+        # Self Mapping 
+        ax1.scatter(x0, y0, marker='D')
+        ax1.scatter(x0, y0, marker='D')
+        
+        # Plot of the current map      
         self.map_plot(visited_points, ax1, marker='.', color="silver")
         self.map_plot(wall_points, ax1, marker='+', color="lightcoral")
         
+        # Plot of the combined map     
         self.map_plot(self.global_visited_points, ax2, marker='.', color="gray")
         self.map_plot(self.global_wall_points, ax2, marker='+', color="red")
 
@@ -545,11 +535,6 @@ class RobomasterNode(Node):
         grid = self.pop_grid(wall_offset, visited_offset, max_x_index, max_y_index, square_grid=True)
 
         def normalize_value(x):
-            # scaler = pre.MinMaxScaler(feature_range=(-1, 1))  # Define the range as 0 to 1
-            # x = np.array(x).reshape(-1, 1)  # Reshape the data to a 2D array if it's 1D
-            # normalized = scaler.fit_transform(x)  # Normalize the values
-            # normalized[x == 0] = 0
-
             norm = x.copy().astype(float)
 
             norm[x<0] /= - (x[x<0].min())
@@ -567,12 +552,9 @@ class RobomasterNode(Node):
 
 
         # HEATMAP PLOT
-        fig_pcolormesh, ax_pcolormesh = plt.subplots()
+        ax_pcolormesh = figure.add_subplot(gs[1, :])
         c = ax_pcolormesh.pcolormesh(normalized_data, cmap='RdBu_r')
-        fig_pcolormesh.colorbar(c, ax=ax_pcolormesh)
-        # ax_pcolormesh.set_ylim(ax_pcolormesh.get_ylim()[::-1])        # invert the axis
-        # ax_pcolormesh.xaxis.tick_top()  # and move the X-Axis
-
+        figure.colorbar(c, ax=ax_pcolormesh)
 
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(grid, x0_d, y0_d, print_binary = False, print_cumulative = True)
@@ -612,9 +594,7 @@ class RobomasterNode(Node):
                 self.current_map += 1
                 plt.ion()
                 plt.show()
-                # plt.close()
-                # plt.show(block = False)
-                # plt.pause(interval = 2)
+                plt.pause(interval=2)
 
                 print("now after block")
 
@@ -629,12 +609,8 @@ class RobomasterNode(Node):
                 ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
                 self.current_map += 1
                 plt.ion()
-
-                #animation = FuncAnimation(fig, update, frames=len(self.points), interval=200, blit=True)
-
                 plt.show()
-                # plt.show(block = False)
-                plt.pause(interval = 2)
+                plt.pause(interval=2)
                 return
 
 
@@ -664,9 +640,7 @@ class RobomasterNode(Node):
         self.current_map += 1
         plt.ion()
         plt.show()
-        # plt.show(block = False)
-        plt.pause(interval = 2)
-        # plt.close()
+        plt.pause(interval=2)
 
         print("now after block")
 
