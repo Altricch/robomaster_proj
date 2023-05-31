@@ -164,11 +164,8 @@ class RobomasterNode(Node):
         # as we slighlty drift during 360 rotation
         if self.state == "correcting":
             if np.isclose(self.current_pose[-1],0.0,atol=0.006):
-                print("here1")
                 plt.ioff()
-                print("here1")
                 plt.close('all')
-                print("here1")
                 self.spins += 1
                 self.state = "done"
                 self.realtime = False
@@ -178,8 +175,6 @@ class RobomasterNode(Node):
                 cmd_vel.angular.z = -0.05
             elif self.current_pose[-1] < -0.015:
                 cmd_vel.angular.z = 0.05
-        
-        print("here4")
 
         self.vel_publisher.publish(cmd_vel)
 
