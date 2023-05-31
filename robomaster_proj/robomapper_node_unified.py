@@ -88,7 +88,8 @@ class RobomasterNode(Node):
                                "move":[ 0.0, 1.0, 0.0],
                                "target": [0.0,0.0,0.0],
                                "target_def": [0.0,0.0,0.0],
-                               "stop": [0.0,0.0,0.0]}
+                               "stop": [0.0,0.0,0.0],
+                               "correcting": [0.0,0.0,0.0]}
 
         self.odom_pose = None
         self.odom_velocity = None
@@ -159,7 +160,7 @@ class RobomasterNode(Node):
         return pose2
 
     # Rotates robot by 360 degrees
-    def rotate_360(self, rot_step):
+    def rotate_360(self):
         cmd_vel = Twist()
 
         if self.state == 'scanning' and self.initial_pose is not None:
@@ -170,14 +171,13 @@ class RobomasterNode(Node):
                 np.pi if self.current_pose[2] > 0 else 360 + \
                 self.current_pose[2]*180/np.pi
             angle = round(angle + (self.spins * 360.00), 2)
-            cmd_vel.angular.z = rot_step
+
+            cmd_vel.angular.z = (self.state_dict[self.state][-1]/self.speed_damper)
 
             
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
-                self.spins += 1
-                self.state = "done"
-                self.realtime = False
-                cmd_vel.angular.z = 0.0
+                print("COMPLETED 360 ROTATION")
+                self.state = "correcting"
 
             elif self.counter % 2 == 0 and self.range_f > 0:
                 # self.get_logger().info(
@@ -194,6 +194,23 @@ class RobomasterNode(Node):
 
             self.previous_angle = angle
 
+        elif self.state == "correcting":
+            if np.isclose(self.current_pose[-1],0.0,atol=0.005):
+                plt.ioff()
+                plt.close('all')
+                self.spins += 1
+                self.state = "done"
+                self.realtime = False
+                cmd_vel.angular.z = 0.0
+
+            elif self.current_pose[-1] > 0.015:
+                cmd_vel.angular.z = -0.05
+            elif self.current_pose[-1] < -0.05:
+                cmd_vel.angular.z = 0.05
+
+            
+
+
         self.vel_publisher.publish(cmd_vel)
 
     def timer_callback(self):
@@ -203,7 +220,7 @@ class RobomasterNode(Node):
 
         self.counter += 1
         
-        self.rotate_360(0.2)
+        self.rotate_360()
 
         cmd_vel = Twist()
 
@@ -281,6 +298,7 @@ class RobomasterNode(Node):
                     ' Fx ' + str(self.target_pos[0]) + " Fy" + str(self.target_pos[1]))
                 print(" DIR X ", dir_x)
                 print(" DIR Y", dir_y)
+                print("theta ", self.current_pose[2])
 
             if self.target_approach == "UT":
             ### THIS IS FOR UPPER TRIANGULAR
@@ -297,6 +315,9 @@ class RobomasterNode(Node):
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
+
+                    plt.ioff()
+                    plt.close('all')
             elif self.target_approach == "LT":
                 ### THIS IS FOR LOWER TRIANGULAR
                 if abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
@@ -312,6 +333,9 @@ class RobomasterNode(Node):
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
+
+                    plt.ioff()
+                    plt.close('all')
 
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
