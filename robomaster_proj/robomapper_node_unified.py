@@ -6,75 +6,57 @@ from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import matplotlib.gridspec as gridspec
 import numpy as np
 import sys
 import math
-import time
-import random
 
-
-# TODO: 
-# - ensure that the angle after mapping is 0
-# - pid to target position
-# - stress test with various rooms
-# - embellish map maybe with 3d stuff
-
-# Hello
 
 class RobomasterNode(Node):
     def __init__(self):
         super().__init__('robomaster_node')
 
-        # self.range_l = -1.0
-        # self.range_r = -1.0
-        # self.range_b = -1.0
         self.range_limit = 5.0 + 0.15   # range limit plus distance from ICR
         self.scaling = 20               # grid size
         self.speed_damper = 5.0         # the higher the slower
 
-        self.discrete = 0.25             # computation distance of walkable points
-
-        self.test = 1
+        self.discrete = 0.25            # computation distance of walkable points
 
         self.initial_pose = None
         self.current_pose = None
-        self.target_pose = None
 
         self.translations = []          # list of triples (last deltax, last deltay, movementtype)
         
-        self.target_approach = None
+        self.target_approach = None     # Defining the path to go Upper triangle UT or lower triangle LT
         self.current_map = 0
 
         self.resetting = False          #If we have to backtrack to earlier mapping position
 
-        ### CHRIS
-        self._delt_target_pose = None
+        self.delt_target_pose = None
 
         self.xtrav = True
         self.ytrav = True
-        ###
 
         self.min_x = 0.0
         self.max_x = 0.0
         self.min_y = 0.0
         self.max_y = 0.0
 
-        self.fig_continue = None
-        self.ax_continue = None
+        self.fig_continue = None         # figure for realtime plotting
+        self.ax_continue = None          # axis for realtime plotting
         
-        
-        self.realtime = True
-        self.create_fig = True
+        self.realtime = True             # if we are in realtime plotting mode
+        self.create_fig = True           # if we have to create a new real time figure
 
-        self.counter = 0
-        self.range_f = -1
-        self.distance_travelled = 0
-        self.previous_angle = 0         # previous yaw in rad
-        self.spins = 0                  # how many full spins the robot has done
-        self.points = []                # points list saved as [range, yaw]
+        self.counter = 0                 # counter for 360 rotation
+        self.range_f = -1                # front range of sensor
         
+        # For 360 rotation
+        self.previous_angle = 0          # previous yaw in rad
+        self.spins = 0                   # how many full spins the robot has done
+        self.points = []                 # points list saved as [range, yaw]
+        
+        # For mapping
         self.global_visited_points = []
         self.global_wall_points = []
         self.global_line_visited = []
@@ -84,12 +66,13 @@ class RobomasterNode(Node):
         # Key: state, Val: velocities [lin x, lin y, ang z]
         self.state_dict = {"scanning":[0.0, 0.0, 1.0],
                                "done":[ 0.0, 0.0, 0.0],
-                                "map":[ 0.0 , 0.0, 0.0],
-                               "move":[ 0.0, 1.0, 0.0],
+                                # "map":[ 0.0 , 0.0, 0.0],
+                            #    "move":[ 0.0, 1.0, 0.0],
                                "target": [0.0,0.0,0.0],
                                "target_def": [0.0,0.0,0.0],
                                "stop": [0.0,0.0,0.0],
-                               "correcting": [0.0,0.0,0.0]}
+                               "correcting": [0.0,0.0,0.0]
+                               }
 
         self.odom_pose = None
         self.odom_velocity = None
@@ -102,18 +85,13 @@ class RobomasterNode(Node):
         # Get sensor data
         self.proximity_f = self.create_subscription(
             Range, '/RM0001/range_0', self.prox_callback_f, 10)
-        # self.proximity_l = self.create_subscription(Range, '/RM0001/range_1', self.prox_callback_l, 10)
-        # self.proximity_b = self.create_subscription(Range, '/RM0001/range_2', self.prox_callback_b, 10)
-        # self.proximity_r = self.create_subscription(Range, '/RM0001/range_3', self.prox_callback_r, 10)
 
         self.timer_counter = 0
 
     def start(self):
-        # Create and immediately start a timer that will regularly publish commands
         self.timer = self.create_timer(1/100, self.timer_callback)
 
     def stop(self):
-        # Set all velocities to zero
         cmd_vel = Twist()
         self.vel_publisher.publish(cmd_vel)
 
@@ -131,15 +109,6 @@ class RobomasterNode(Node):
     def prox_callback_f(self, msg):
         # 10.0 is the coppelia standard reading for out of range
         self.range_f = self.range_limit if msg.range == 10.0 else msg.range + 0.15
-
-    # def prox_callback_l(self, msg):
-    #     self.range_l = msg.range
-
-    # def prox_callback_r(self, msg):
-    #     self.range_r = msg.range
-
-    # def prox_callback_b(self, msg):
-    #     self.range_b = msg.range
 
     def pose3d_to_2d(self, pose3):
         quaternion = (
@@ -159,10 +128,11 @@ class RobomasterNode(Node):
 
         return pose2
 
-    # Rotates robot by 360 degrees
+    # Rotates robot by 360 degrees and maps the room in real time
     def rotate_360(self):
         cmd_vel = Twist()
 
+        # Start 360 rotation under certain conditions
         if self.state == 'scanning' and self.initial_pose is not None:
             self.xtrav = True
             self.ytrav = True
@@ -174,18 +144,14 @@ class RobomasterNode(Node):
 
             cmd_vel.angular.z = (self.state_dict[self.state][-1]/self.speed_damper)
 
-            
+            # Stopping condition for 360 rotation
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
                 print("COMPLETED 360 ROTATION")
                 self.state = "correcting"
-
+            
+            # For (real time) mapping
             elif self.counter % 2 == 0 and self.range_f > 0:
-                # self.get_logger().info(
-                #     'angle:' + str(angle) + ' | range:' + str(round(self.range_f, 2)))
                 self.points.append([self.range_f, self.current_pose[2]])
-
-                
-                # if self.realtime and self.current_pose is not None:
                 x0, y0, t = self.current_pose
                 x1 = x0 + self.range_f * np.cos(t)
                 y1 = y0 + self.range_f * np.sin(t)
@@ -194,10 +160,15 @@ class RobomasterNode(Node):
 
             self.previous_angle = angle
 
-        elif self.state == "correcting":
-            if np.isclose(self.current_pose[-1],0.0,atol=0.005):
+        # Performs correcting operating of pose to move into perfect horizontal (or vertical) position
+        # as we slighlty drift during 360 rotation
+        if self.state == "correcting":
+            if np.isclose(self.current_pose[-1],0.0,atol=0.006):
+                print("here1")
                 plt.ioff()
+                print("here1")
                 plt.close('all')
+                print("here1")
                 self.spins += 1
                 self.state = "done"
                 self.realtime = False
@@ -205,30 +176,33 @@ class RobomasterNode(Node):
 
             elif self.current_pose[-1] > 0.015:
                 cmd_vel.angular.z = -0.05
-            elif self.current_pose[-1] < -0.05:
+            elif self.current_pose[-1] < -0.015:
                 cmd_vel.angular.z = 0.05
-
-            
-
+        
+        print("here4")
 
         self.vel_publisher.publish(cmd_vel)
 
+    # Core of our node. Responsible for the mapping and the movement of the robot
     def timer_callback(self):
 
+        # Waiting for first callback on pose for further processing, else error
         if self.current_pose == None:
             return
 
         self.counter += 1
         
+        # Start 360 rotation
         self.rotate_360()
 
+        # Initialize cmd_vel
         cmd_vel = Twist()
 
+        # Real time plotting
         if len(self.global_line_visited) > 0 and self.realtime:
             
             if self.create_fig:
                 self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
-                
                 self.create_fig = False
 
             x0, y0, _ = self.current_pose
@@ -239,43 +213,35 @@ class RobomasterNode(Node):
             global_line_visited = np.array(self.global_line_visited)
             X = global_line_visited[:, :, 0].T
             Y = global_line_visited[:, :, 1].T
-
-            # draw a line
-            plt.plot(X, Y, color="green")
-
-            self.ax_continue.scatter(x0, y0, marker='D')
-            self.ax_continue.scatter(x0, y0, marker='D')
-
-            self.ax_continue.set_aspect('equal')
             
-
+            # draw lines for real time plotting between robot and sensor endpoints
+            # We use plt.ion and plt.pause to update the plot in real time
+            plt.plot(X, Y, color="green")
+            self.ax_continue.scatter(x0, y0, marker='D')
+            self.ax_continue.scatter(x0, y0, marker='D')
+            self.ax_continue.set_aspect('equal')
             plt.ion()
             plt.show()
             plt.pause(interval = 0.0001)
 
+        # If we are done with 360 rotation, we compute the discretized map and save the figures based on index
+        # Calls function compute all which is responsible for the discretization and mapping for all outputs
         if self.state == 'done':
-
             if len(self.points) >= 2:
+                self.fig_continue.savefig('src/robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
-                print("before compute allrealtime: ", self.realtime)
+                
                 self.compute_all()
+                
                 self.realtime = True
-                print("after compute all realtime: ", self.realtime)
                 self.create_fig = True
                 self.fig_continue = None
                 self.ax_continue = None
-                
-            else:
-                print("ERROR, NOT ENOUGH POINTS")
 
-        ### CHRIS
+        # If we are in target_def state, we compute the target pose and set it
         if self.state == "target_def":
-            
             sx, sy, t = self.current_pose
-
-            print("theta", t)
-
             d_x = self.delt_target_pose[0]
             d_y = self.delt_target_pose[1]
 
@@ -283,24 +249,16 @@ class RobomasterNode(Node):
             fy = sy + d_y
 
             self.target_pos = fx, fy, 0
-
             self.state = "target"
 
+        # If we are in target state, we move towards the target pose
         if self.state == "target":
             sx, sy, _ = self.current_pose
             dir_x = np.sign(self.delt_target_pose[0])
             dir_y = np.sign(self.delt_target_pose[1])
 
-            if self.counter % 1000 == 0:
-                self.get_logger().info(
-                    'Sx:' + str(sx) + ' | Sy:' + str(sy) + 
-                    ' Fx ' + str(self.target_pos[0]) + " Fy" + str(self.target_pos[1]))
-                print(" DIR X ", dir_x)
-                print(" DIR Y", dir_y)
-                print("theta ", self.current_pose[2])
-
+            # Moves in Upper Triangular fashion (UT)
             if self.target_approach == "UT":
-            ### THIS IS FOR UPPER TRIANGULAR
                 if abs(self.target_pos[1] - sy) > 0.02 and self.ytrav:
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 elif abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
@@ -308,7 +266,7 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 else:
                     self.xtrav = False
-                    self.state = "scanning" #if self.resetting == False else "done"
+                    self.state = "scanning" 
                     self.resetting = False
 
                     self.points = []
@@ -317,8 +275,9 @@ class RobomasterNode(Node):
 
                     plt.ioff()
                     plt.close('all')
+            
+            # Moves in Lower Triangular fashion (LT)
             elif self.target_approach == "LT":
-                ### THIS IS FOR LOWER TRIANGULAR
                 if abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 elif abs(self.target_pos[1] - sy) > 0.02 and self.ytrav:
@@ -326,7 +285,7 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 else:
                     self.ytrav = False
-                    self.state = "scanning" #if self.resetting == False else "done"
+                    self.state = "scanning" 
                     self.resetting = False
 
                     self.points = []
@@ -336,6 +295,7 @@ class RobomasterNode(Node):
                     plt.ioff()
                     plt.close('all')
 
+        # We always publish the velocities according to the state
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
 
@@ -354,19 +314,22 @@ class RobomasterNode(Node):
             x1 = x0 + dist * np.cos(theta)
             y1 = y0 + dist * np.sin(theta)
 
+            # Determines wether sensor endpoint is walkable or wall point
             if dist < self.range_limit:
                 wall.append([x1, y1])
                 self.global_wall_points.append([x1, y1])
 
-            map_len_const = self.discrete  # 0.25
-            step = map_len_const
+            step = self.discrete
+            
+            # Compute all points between robot and sensor endpoint
             while (step < dist):
                 x_mid = x0 + step * np.cos(theta)
                 y_mid = y0 + step * np.sin(theta)
                 visited.append([x_mid, y_mid])
                 self.global_visited_points.append([x_mid, y_mid])
-                step += map_len_const
+                step += self.discrete
 
+            # Compute boarders for plot and discretization
             if x1 > self.max_x:
                 self.max_x = round(x1, 2)
             elif x1 < self.min_x:
@@ -379,16 +342,12 @@ class RobomasterNode(Node):
 
         self.state = 'map'
 
-        print("X min:" + str(self.min_x) + " | max:" + str(self.max_x))
-        print("Y min:" + str(self.min_y) + " | max:" + str(self.max_y))
-
         return visited, wall
 
-    # given offset given point coordinates by a given amount
+    # Computes and translates all points into the positive quadrant
     def comp_offset(self, min_x, min_y, points, scale):
         max_x = 0
         max_y = 0
-        # IN FUTURE MIGHT NEED TO DEAL WITH NEGATIVE MAX VALS
         offset_points = []
 
         for point in points:
@@ -405,13 +364,6 @@ class RobomasterNode(Node):
             x = int(round(x,0))
             y = int(round(y,0))
 
-            # TOBE FIXED LATER
-            # if x >= self.scaling:
-            #     print(x, "x out of range")
-            #     x = self.scaling - 1
-            # if y >= self.scaling:
-            #     print(y, "y out of range")
-            #     y = self.scaling - 1
             if x > max_x:
                 max_x = x
             if y > max_y:
@@ -421,19 +373,16 @@ class RobomasterNode(Node):
 
         return offset_points, max_x, max_y
 
-    # Populates a grid with cumulative statistics according to discretized votes
-    # for both wall points (postiive values) and visited points (negative values)
 
+    # Populates a grid with cumulative statistics (based on votes e.g. how many times a pixel has been "seen" by the sensor)
+    # according to discretized votes for both wall points (postiive values) and visited points (negative values)
     def pop_grid(self, wall_offset, visited_offset, max_x, max_y, square_grid = False):
-
-        print("POP_GRID DIMESNIONS", max_x, max_y)
 
         if square_grid:
             square_dimension = max(max_x, max_y)+1
             grid = np.zeros((square_dimension, square_dimension))
         else:
             grid = np.zeros((max_y+1, max_x+1))
-
 
         for point in wall_offset:
             x, y = point            # inverted points to conform to array logic
@@ -453,26 +402,26 @@ class RobomasterNode(Node):
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise.
     # Lastly, we cap the cumulative probability for both states according to observations
     def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=1, cap_visited=-2, print_cumulative = False, print_binary = True):
-        # binary_grid = np.where(acc_grid >= cap_wall, '□', (np.where(acc_grid <= cap_visited, '·', '?')))
-        # binary_grid[binary_grid.shape[0] - y0, x0] = '웃' # This is us
 
-        # For visualization purposes
+        # Print cumulative grid to console
         if print_cumulative:
             print(np.flip(acc_grid, axis=0))
 
         binary_grid = np.where(acc_grid >= cap_wall, 'x',
                                (np.where(acc_grid <= cap_visited, '.', '0')))
+        
         binary_grid[y0, x0] = 'ﾂ'  # This is us
 
         binary_grid = np.flip(binary_grid, axis=0)
 
-        # print(binary_grid)
+        # Print binary grid to console
         if print_binary:
             print(np.array2string(binary_grid, separator=' ',
                 formatter={'str_kind': lambda x: x}))
 
         return binary_grid
     
+    # Plots the points on the map
     def map_plot(self, points, ax, marker, color):
         points = np.array(points)
         x = points[:, 0]
@@ -480,22 +429,23 @@ class RobomasterNode(Node):
         ax.scatter(x, y, marker=marker, color=color)
         ax.set_aspect('equal')
 
-
+    # Computes all the steps for mapping
     def compute_all(self):
 
         visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
         
-               
+        # Grid for 3 sub-plots 
         gs = gridspec.GridSpec(2,2)
         figure = plt.figure(figsize=(10, 10))
         
-        ax1 = figure.add_subplot(gs[0, 0]) # row 0, col 0
+        # axises for uppwer left and upper right
+        ax1 = figure.add_subplot(gs[0, 0])
         ax2 = figure.add_subplot(gs[0, 1])
         
-        # Self Mapping 
+        # Mapping of our current position (robots position) 
         ax1.scatter(x0, y0, marker='D')
-        ax1.scatter(x0, y0, marker='D')
+        ax2.scatter(x0, y0, marker='D')
         
         # Plot of the current map      
         self.map_plot(visited_points, ax1, marker='.', color="silver")
@@ -509,11 +459,10 @@ class RobomasterNode(Node):
         x_delta = self.max_x - self.min_x
         y_delta = self.max_y - self.min_y
 
+        # Correct scaling of map
         min_x = abs(self.min_x)
         min_y = abs(self.min_y)
-        
         abs_delta = x_delta if x_delta > y_delta else y_delta
-        
         scale = abs_delta/self.scaling
 
         # Compute offset for wall points and visited points
@@ -523,7 +472,7 @@ class RobomasterNode(Node):
         visited_offset, max_x_index_v, max_y_index_v = self.comp_offset(
             min_x, min_y, self.global_visited_points, scale)
 
-        # Discretize Inital Pos
+        # Discretize initial position
         x0_d = int(round((x0 + min_x)/scale, 0))
         y0_d = int(round((y0 + min_y)/scale, 0))
 
@@ -533,121 +482,65 @@ class RobomasterNode(Node):
 
         # Get cumulative grid with votes
         grid = self.pop_grid(wall_offset, visited_offset, max_x_index, max_y_index, square_grid=True)
-
+        
+        # inner function for normalization
         def normalize_value(x):
             norm = x.copy().astype(float)
-
             norm[x<0] /= - (x[x<0].min())
             norm[x>0] /= x[x>0].max()
-
             return norm
 
-        print("type corrected_grid ", type(grid))
-        print("shape corrected_grid ", grid.shape)
-
         normalized_data = normalize_value(grid)
-        print("type normalize_value ", type(normalized_data))
-        print("shape normalize_value ", normalized_data.shape)
-        print(normalized_data)
 
-
-        # HEATMAP PLOT
+        # Plotting of the heat map based on votes per pixel (lower plot in grid figure)
         ax_pcolormesh = figure.add_subplot(gs[1, :])
         c = ax_pcolormesh.pcolormesh(normalized_data, cmap='RdBu_r')
         figure.colorbar(c, ax=ax_pcolormesh)
 
         # Get binary grid and print
-        binary_grid = self.pop_binary_grid(grid, x0_d, y0_d, print_binary = False, print_cumulative = True)
+        binary_grid = self.pop_binary_grid(grid, x0_d, y0_d)
 
-        # check how many points are identified as wall
-        coords = np.argwhere(binary_grid == 'x')
-        print("wall coords amount:", len(coords))
-
-        ### GETTING CLOSEST ####
-        result = select_route(binary_grid)
-        if type(result) is not type("hello"):
-            nearest, position, walkable, vertical_delta, horizontal_delta = result
-        else:
-
-            ### New solution, go back to previous pos
-            ### once there do not map but simply search for new candidates
-            ### if no more previous poses available or reachable, stop node
-            if len(self.translations) != 0:
-                self.resetting = True
-                print("NO REACHABLE CANDIDATE, REVERTING TO PREVIOUS MAPPING POSE")
-                position = get_current_pos(binary_grid)
-                tx, ty, approach = self.translations.pop()
-                #INVERSION of direction
-                dfx = -tx
-                dfy = -ty
-                self.target_approach = "LT" if approach == "UT" else "UT"
-                self.delt_target_pose = (dfx , dfy, 0)
-                
-                print("in world scale")
-                print("DFX", dfx)
-                print("DFY", dfy)
-                print("approach", self.target_approach)
-
-                ax1.set_title("Current map " + str(self.current_map))
-                ax2.set_title("Combined map " + str(self.current_map))
-                ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
-                self.current_map += 1
-                plt.ion()
-                plt.show()
-                plt.pause(interval=2)
-
-                print("now after block")
-
-                self.state = "target_def"
-                return 
-
-            else:
-                print("NO REACHABLE POINTS, NODE IS STOPPED")
-                self.state = "stop"
-                ax1.set_title("Current map " + str(self.current_map))
-                ax2.set_title("Combined map " + str(self.current_map))
-                ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
-                self.current_map += 1
-                plt.ion()
-                plt.show()
-                plt.pause(interval=2)
-                return
-
-
-        # inverted x & y
-        fy, fx = nearest
-        sy, sx = position
-        #########################
-
-        case1 = walkable[0] # Move vertically first then horizontally
-        case2 = walkable[1] # Move horizontally first then vertically
-        case3 = walkable[2] # Move diagonally first then either vertically or horizontally
-
-        if case1:
-            self.target_approach = "UT"
-        elif case2:
-            self.target_approach = "LT"
-        else:
-            self.target_approach = "Diag"
-            print("DIAGONAL APPROACH NOT IMPLEMENTED YET")
-            self.target_approach = "UT"
-
-        # self.state = 'move'
+        # Get closes unobservable point
+        result = self.select_route(binary_grid)
+        
         ax1.set_title("Current map " + str(self.current_map))
         ax2.set_title("Combined map " + str(self.current_map))
-        ax_pcolormesh.set_title("Heatmap " +str(self.current_map))
-
+        ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
+        figure.savefig('src/robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
         self.current_map += 1
         plt.ion()
         plt.show()
         plt.pause(interval=2)
+        
+        # If it is a tuple, meaning we have a valid route, we can proceed
+        if type(result) is not type("String"):
+            _, _, walkable, vertical_delta, horizontal_delta = result
+        
+        # Else we mapped everything from our current position and return to the previous for further scanning
+        else:
+            if len(self.translations) != 0:
+                self.resetting = True
+                tx, ty, approach = self.translations.pop()
+                
+                # Inversion due to discretization
+                dfx = -tx
+                dfy = -ty
+                self.target_approach = "LT" if approach == "UT" else "UT"
+                self.delt_target_pose = (dfx , dfy, 0)
+                self.state = "target_def"
+                return 
 
-        print("now after block")
+            else:
+                self.state = "stop"            
+                return
 
-        print("inversion of x and y")
-        print("Start X ", sx , " Start Y ", sy)
-        print("Target X ", fx , " Target Y ", fy)
-        print("SCALE FACTOR", scale)
+        case1 = walkable[0] # Move vertically first then horizontally
+
+        # Determine if we have to move in upper or lower triangle
+        if case1:
+            self.target_approach = "UT"
+        else:
+            self.target_approach = "LT"
 
         # Inverted
         dfx = horizontal_delta * scale 
@@ -655,19 +548,58 @@ class RobomasterNode(Node):
 
         self.translations.append([dfx,dfy,self.target_approach])
 
-        print("in world scale")
-        print("DFX", dfx)
-        print("DFY", dfy)
-
-        print("target pose in world coordinates")
-        print("with respect to our current pose")
-        print("x", self.current_pose[0] + dfx)
-        print("y", self.current_pose[1] + dfy)
-
-        #this might indicate how much to travel but not the end position
+        # Delta from our current position to the target position
         self.delt_target_pose = (dfx , dfy, 0)
 
         self.state = "target_def"
+        
+    # Determines the next route to take based on the binary grid
+    def select_route(self, binary):
+        position = get_current_pos(binary)
+        keep_looping = True
+        plausible_pos = unseen_neighbors(binary)
+        
+        # If no plausible candidates are left, we have mapped everything
+        if len(plausible_pos) == 0:
+            print("WE HAVE MAPPED EVERYTHING")
+            print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
+            self.state = "stop"
+            return "Mapped_All"
+        
+        # Check for nearest candidate
+        else:
+            while keep_looping:
+                
+                nearest = min_dist(plausible_pos, position)
+                nearest_known = get_known(nearest, binary)
+                walkable = check_path(position, nearest_known, binary)
+
+                if np.all(np.asarray(walkable) == False):
+                    print("KEEP SEARCHING CANDIDATES")
+                    plausible_pos.remove(nearest)
+                    if len(plausible_pos) == 0:
+                        print("WE HAVE MAPPED EVERYTHING")
+                        print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
+                        return "Mapped_All"
+                else: 
+                    print("STOP LOOPING: CANDIDATE FOUND")
+                    keep_looping = False
+
+            binary[nearest_known] = '◎'
+            print(np.array2string(binary, separator=' ',
+                    formatter={'str_kind': lambda x: x}))
+            
+            dx = nearest_known[0]-position[0]
+            dy = nearest_known[1]-position[1]
+
+            print()
+            print("array coordinates")
+            print("OUR POSITION ﾂ:", position)
+            print("NEAREST POSITION ◎:", nearest_known)
+            print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
+            print("VERTICAL TRASLATION (rounded up):", dx)
+            print("HORIZONTAL TRASLATION (rounded up):", dy)
+            return nearest_known, position, walkable, dx, dy
 
 
 # Retrieves all plausible candidates, e.g. that have a 0 neighbor and a reachable neighbor.
@@ -678,7 +610,6 @@ def unseen_neighbors(binary):
     for elem in zip(x, y):
         if candidate(binary, elem):
             plausible_pos.append(elem)
-    # print("Plausible candidates are", plausible_pos)
     return plausible_pos
 
 # Retrieves the element with min distance amongst all plausible candidates
@@ -735,7 +666,7 @@ def candidate(binary, elem):
     return in_0_neihborhood and in_reach_neighborhood
 
 
-# either LT, UT, Diag, Hor
+# Either LT or UT
 def check_path(current_pos, target_pos, binary):
     sx, sy = current_pos
     fx, fy = target_pos
@@ -748,17 +679,14 @@ def check_path(current_pos, target_pos, binary):
 
     LT = True
     UT = True
-    Diagonal = True
 
     # UTriangular
     sx = csx
     sy = csy
     while sx != fx:
         sx += dx
-        # CMD.Velangular.x
         if binary[sx, sy] == "x":
             UT = False
-
     if UT:
         while sy != fy:
             sy += dy
@@ -781,19 +709,7 @@ def check_path(current_pos, target_pos, binary):
             if binary[sx, sy] == "x":
                 LT = False
 
-    # Diagonal
-    sx = csx
-    sy = csy
-    while sy != fy and sx != fx:
-        if sy != fy:
-            sy += dy
-        if sx != fx:
-            sx += dx
-        elem = binary[sx, sy]
-        if elem == "x":
-            Diagonal = False
-
-    return UT, LT, False # Diagonal not implemented
+    return UT, LT 
 
 # Retrieves from the array the position we currenly have
 def get_current_pos(binary):
@@ -801,6 +717,7 @@ def get_current_pos(binary):
     position = (px[0],py[0]) # array[int] -> int
     return position
 
+# Get closest point that is known to unknown point
 def get_known(point, binary):
     x, y = point
     neighbours =  [(x+1,y), (x-1,y), (x,y+1), (x,y-1), (x+1,y+1), (x-1,y-1), (x+1,y-1), (x-1,y+1)]
@@ -808,79 +725,19 @@ def get_known(point, binary):
         if binary[elem[0], elem[1]] == '.':
             return elem
 
-
-def select_route(binary):
-    position = get_current_pos(binary)
-
-    keep_looping = True
-    plausible_pos = unseen_neighbors(binary)
-    if len(plausible_pos) == 0:
-        print("WE HAVE MAPPED EVERYTHING")
-        print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
-        return "Mapped_All"
-    else:
-        while keep_looping:
-            
-            nearest = min_dist(plausible_pos, position)
-
-            nearest_known = get_known(nearest, binary)
-
-            walkable = check_path(position, nearest_known, binary)
-
-            if np.all(np.asarray(walkable) == False):
-                print("KEEP SEARCHING CANDIDATES")
-                plausible_pos.remove(nearest)
-                if len(plausible_pos) == 0:
-                    print("WE HAVE MAPPED EVERYTHING")
-                    print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
-                    return "Mapped_All"
-            else: 
-                print("STOP LOOPING: CANDIDATE FOUND")
-                keep_looping = False
-
-
-        binary[nearest_known] = '◎'
-        print(np.array2string(binary, separator=' ',
-                formatter={'str_kind': lambda x: x}))
-        
-        dx = nearest_known[0]-position[0]
-        dy = nearest_known[1]-position[1]
-
-        # THIS FIXES DISCRETIZATION
-        # BASED ON THE SSUMPTION THAT NUMBERS 
-        # HAVE BEEN ROUNDED DOWN EARLIER
-        #dx += np.sign(dx)
-        #dy += np.sign(dy)
-
-        print()
-        print("array coordinates")
-        print("OUR POSITION ﾂ:", position)
-        print("NEAREST POSITION ◎:", nearest_known)
-        print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
-        print("VERTICAL TRASLATION (rounded up):", dx)
-        print("HORIZONTAL TRASLATION (rounded up):", dy)
-        return nearest_known, position, walkable, dx, dy
-    
-    return "Mapped_All"
-
-
+# Main execution
 def main():
     np.set_printoptions(linewidth=150, legacy="1.13")
-    # Initialize the ROS client library
     rclpy.init(args=sys.argv)
-
-    # Create an instance of your node class
     node = RobomasterNode()
 
     node.start()
-
-    # Keep processings events until someone manually shuts down the node
+    
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
 
-    # Ensure the Thymio is stopped before exiting
     node.stop()
 
 
