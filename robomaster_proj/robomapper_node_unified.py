@@ -226,7 +226,7 @@ class RobomasterNode(Node):
         if self.state == 'done':
             if len(self.points) >= 2:
                 self.fig_continue.savefig(
-                    'src/robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
+                    'robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
 
@@ -506,7 +506,7 @@ class RobomasterNode(Node):
         ax2.set_title("Combined map " + str(self.current_map))
         ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
         figure.savefig(
-            'src/robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
+            'robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
         self.current_map += 1
         plt.ion()
         plt.show()
