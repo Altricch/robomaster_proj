@@ -12,6 +12,12 @@ In T1 run the following command to open CoppeliaSim:
 
 ` ~/apps/CoppeliaSim_Edu_V4_4_0_rev0_Ubuntu20_04/coppeliaSim.sh`
 
+Once CoppeliaSim has started, kindly open one of the respective scences.
+
+#### Notes
+ - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
+ - Please pay attention to the objects you add, they should be set as collidable and detectable.
+
 In T2 run the following commands to build the project:
 
 1. `cd dev_ws/`
@@ -20,7 +26,7 @@ In T2 run the following commands to build the project:
 
 In T3 run the following commands to bridge:
 
-1. `cd dev_ws/src`
+1. `cd dev_ws/src/`
 
 2. `source ~/dev_ws/install/setup.bash`
 
@@ -28,7 +34,7 @@ In T3 run the following commands to bridge:
 
 In T4 execute the following commands to run the node:
 
-1. `cd dev_ws/src`
+1. `cd dev_ws/src/`
 
 2. `source ~/dev_ws/install/setup.bash`
 
@@ -50,7 +56,5 @@ We have tested with the following scenes:
 - Stress_Test4.ttt ⟶ Same as stress test 2 with changed starting position
 - Stress_Test5.ttt ⟶ Large Room with irregular walls
 - Stress_Test6.ttt ⟶ Same as stress test 5 with changed starting position
-
-## Notes
- - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
- - Please pay attention to the objects you add, they should be set as collidable and detectable.
+<br/><br/>
+- Caos.ttt ⟶ Very messy room (enjoy!)
