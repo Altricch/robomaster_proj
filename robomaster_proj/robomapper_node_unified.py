@@ -156,9 +156,6 @@ class RobomasterNode(Node):
 
                 self.global_line_visited.append([[x0, y0], [x1, y1]])
 
-
-            print(self.counter)
-
             self.previous_angle = angle
 
         # Performs correcting operating of pose to move into perfect horizontal (or vertical) position
