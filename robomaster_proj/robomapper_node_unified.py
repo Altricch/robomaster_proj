@@ -737,9 +737,7 @@ def get_known(point, binary):
         if binary[elem[0], elem[1]] == '.':
             return elem
 
-# Main execution
-
-
+# Main
 def main():
     np.set_printoptions(linewidth=150, legacy="1.13")
     rclpy.init(args=sys.argv)
