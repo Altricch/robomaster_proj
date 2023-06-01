@@ -65,4 +65,4 @@ We have tested with the following scenes:
 - Stress_Test5.ttt ⟶ Large Room with irregular walls
 - Stress_Test6.ttt ⟶ Same as stress test 5 with changed starting position
 <br/><br/>
-- Caos.ttt ⟶ Very messy room (enjoy!)
+- Caos.ttt ⟶ Messy room (enjoy!)
