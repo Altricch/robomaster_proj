@@ -1,5 +1,5 @@
 # Robotics Final Project 
-##### Group Z: Altrichter Christian, Jury Andrea D'Onofrio and Francesco Huber
+#### Group Z: Altrichter Christian, Jury Andrea D'Onofrio and Francesco Huber
 GitHub repository: [Click here](https://github.com/Altricch/robomaster_proj.git)
 
 Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
