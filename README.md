@@ -4,6 +4,9 @@ GitHub repository: [Click here](https://github.com/Altricch/robomaster_proj.git)
 
 Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
 
+## Remark
+We suggest to use a M1 Pro or equivalent processor to run our simulation as we have experienced errors with regards to the sensor reading updates. This could subsequently lead to a faulty execution (e.g. robot does not stop spinning / scanning the perimeter). 
+
 ## To run the environments
 
 Firstly, you need to clone the repository in `cd dev_ws/src`. Then, you need to open 4 new terminals.
