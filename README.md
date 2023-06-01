@@ -33,13 +33,13 @@ You can source T3 and T4 just once.
 
 ## Scene Selection
 In order to test the robot we suggest the following scenes:
-- Old_Scene.ttt (Basic square room with angular wall section in top left corner)
-- Mapped_scene.ttt (Same as Old_scene but changed starting position)
-- Mapped_scene_with_plants.ttt (Same as original stress test but with obstacles)
-- Stress_Test.ttt (Version of Old_Scene with unreachable bottom left corner)
-- Stress_Test2.ttt (Large Rectangular Room with some abstacles)
-- Stress_Test3.ttt (Square room with big diagonal section)
-- Stress_Test2.ttt (Same as stress test 2 with changed starting position)
+- Base_Scene.ttt (Basic square room with angular wall section in top left corner)
+- Base_Scene2.ttt (Same as previous but changed starting position)
+- Base_Scene_Plant.ttt (Same as original stress test but with obstacles)
+- Stress_Test.ttt (Version of previous scene with unreachable bottom left corner)
+- Stress_Test2.ttt (Square room with big diagonal section)
+- Stress_Test3.ttt (Large Rectangular Room with some abstacles)
+- Stress_Test4.ttt (Same as stress test 2 with changed starting position)
 - Stress_Test5.ttt (Large Room with irregular walls)
 - Stress_Test6.ttt (Same as stress test 5 with changed starting position)
 

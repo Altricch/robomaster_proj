@@ -25,12 +25,14 @@ class RobomasterNode(Node):
         self.initial_pose = None
         self.current_pose = None
 
-        self.translations = []          # list of triples (last deltax, last deltay, movementtype)
-        
-        self.target_approach = None     # Defining the path to go Upper triangle UT or lower triangle LT
+        # list of triples (last deltax, last deltay, movementtype)
+        self.translations = []
+
+        # Defining the path to go Upper triangle UT or lower triangle LT
+        self.target_approach = None
         self.current_map = 0
 
-        self.resetting = False          #If we have to backtrack to earlier mapping position
+        self.resetting = False  # If we have to backtrack to earlier mapping position
 
         self.delt_target_pose = None
 
@@ -44,18 +46,18 @@ class RobomasterNode(Node):
 
         self.fig_continue = None         # figure for realtime plotting
         self.ax_continue = None          # axis for realtime plotting
-        
+
         self.realtime = True             # if we are in realtime plotting mode
         self.create_fig = True           # if we have to create a new real time figure
 
         self.counter = 0                 # counter for 360 rotation
         self.range_f = -1                # front range of sensor
-        
+
         # For 360 rotation
         self.previous_angle = 0          # previous yaw in rad
         self.spins = 0                   # how many full spins the robot has done
         self.points = []                 # points list saved as [range, yaw]
-        
+
         # For mapping
         self.global_visited_points = []
         self.global_wall_points = []
@@ -64,15 +66,13 @@ class RobomasterNode(Node):
         self.state = "scanning"
 
         # Key: state, Val: velocities [lin x, lin y, ang z]
-        self.state_dict = {"scanning":[0.0, 0.0, 1.0],
-                               "done":[ 0.0, 0.0, 0.0],
-                                # "map":[ 0.0 , 0.0, 0.0],
-                            #    "move":[ 0.0, 1.0, 0.0],
-                               "target": [0.0,0.0,0.0],
-                               "target_def": [0.0,0.0,0.0],
-                               "stop": [0.0,0.0,0.0],
-                               "correcting": [0.0,0.0,0.0]
-                               }
+        self.state_dict = {"scanning": [0.0, 0.0, 1.0],
+                           "done": [0.0, 0.0, 0.0],
+                           "target": [0.0, 0.0, 0.0],
+                           "target_def": [0.0, 0.0, 0.0],
+                           "stop": [0.0, 0.0, 0.0],
+                           "correcting": [0.0, 0.0, 0.0]
+                           }
 
         self.odom_pose = None
         self.odom_velocity = None
@@ -142,13 +142,14 @@ class RobomasterNode(Node):
                 self.current_pose[2]*180/np.pi
             angle = round(angle + (self.spins * 360.00), 2)
 
-            cmd_vel.angular.z = (self.state_dict[self.state][-1]/self.speed_damper)
+            cmd_vel.angular.z = (
+                self.state_dict[self.state][-1]/self.speed_damper)
 
             # Stopping condition for 360 rotation
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
                 print("COMPLETED 360 ROTATION")
                 self.state = "correcting"
-            
+
             # For (real time) mapping
             elif self.counter % 2 == 0 and self.range_f > 0:
                 self.points.append([self.range_f, self.current_pose[2]])
@@ -163,7 +164,7 @@ class RobomasterNode(Node):
         # Performs correcting operating of pose to move into perfect horizontal (or vertical) position
         # as we slighlty drift during 360 rotation
         if self.state == "correcting":
-            if np.isclose(self.current_pose[-1],0.0,atol=0.006):
+            if np.isclose(self.current_pose[-1], 0.0, atol=0.006):
                 plt.ioff()
                 plt.close('all')
                 self.spins += 1
@@ -186,7 +187,7 @@ class RobomasterNode(Node):
             return
 
         self.counter += 1
-        
+
         # Start 360 rotation
         self.rotate_360()
 
@@ -195,9 +196,10 @@ class RobomasterNode(Node):
 
         # Real time plotting
         if len(self.global_line_visited) > 0 and self.realtime:
-            
+
             if self.create_fig:
-                self.fig_continue, self.ax_continue = plt.subplots(figsize=(5, 5))
+                self.fig_continue, self.ax_continue = plt.subplots(
+                    figsize=(5, 5))
                 self.create_fig = False
 
             x0, y0, _ = self.current_pose
@@ -208,7 +210,7 @@ class RobomasterNode(Node):
             global_line_visited = np.array(self.global_line_visited)
             X = global_line_visited[:, :, 0].T
             Y = global_line_visited[:, :, 1].T
-            
+
             # draw lines for real time plotting between robot and sensor endpoints
             # We use plt.ion and plt.pause to update the plot in real time
             plt.plot(X, Y, color="green")
@@ -217,7 +219,7 @@ class RobomasterNode(Node):
             self.ax_continue.set_aspect('equal')
             plt.ion()
             plt.show()
-            plt.pause(interval = 0.0001)
+            plt.pause(interval=0.0001)
 
         # If we are done with 360 rotation, we compute the discretized map and save the figures based on index
         # Calls function compute all which is responsible for the discretization and mapping for all outputs
@@ -226,9 +228,9 @@ class RobomasterNode(Node):
                 self.fig_continue.savefig('src/robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
-                
+
                 self.compute_all()
-                
+
                 self.realtime = True
                 self.create_fig = True
                 self.fig_continue = None
@@ -261,7 +263,7 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [dir_x, 0.0, 0.0]
                 else:
                     self.xtrav = False
-                    self.state = "scanning" 
+                    self.state = "scanning"
                     self.resetting = False
 
                     self.points = []
@@ -270,7 +272,7 @@ class RobomasterNode(Node):
 
                     plt.ioff()
                     plt.close('all')
-            
+
             # Moves in Lower Triangular fashion (LT)
             elif self.target_approach == "LT":
                 if abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
@@ -280,7 +282,7 @@ class RobomasterNode(Node):
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 else:
                     self.ytrav = False
-                    self.state = "scanning" 
+                    self.state = "scanning"
                     self.resetting = False
 
                     self.points = []
@@ -298,14 +300,14 @@ class RobomasterNode(Node):
 
     # Populate all visited points and all wall points. Discretizes basd on a factor
     def pop_visited_wall_p(self):
-        
+
         x0, y0, _ = self.current_pose
 
         visited = []
         wall = []
 
         for dist, theta in self.points:
-    
+
             x1 = x0 + dist * np.cos(theta)
             y1 = y0 + dist * np.sin(theta)
 
@@ -315,7 +317,7 @@ class RobomasterNode(Node):
                 self.global_wall_points.append([x1, y1])
 
             step = self.discrete
-            
+
             # Compute all points between robot and sensor endpoint
             while (step < dist):
                 x_mid = x0 + step * np.cos(theta)
@@ -356,8 +358,8 @@ class RobomasterNode(Node):
             x /= scale
             y /= scale
 
-            x = int(round(x,0))
-            y = int(round(y,0))
+            x = int(round(x, 0))
+            y = int(round(y, 0))
 
             if x > max_x:
                 max_x = x
@@ -368,10 +370,9 @@ class RobomasterNode(Node):
 
         return offset_points, max_x, max_y
 
-
     # Populates a grid with cumulative statistics (based on votes e.g. how many times a pixel has been "seen" by the sensor)
     # according to discretized votes for both wall points (postiive values) and visited points (negative values)
-    def pop_grid(self, wall_offset, visited_offset, max_x, max_y, square_grid = False):
+    def pop_grid(self, wall_offset, visited_offset, max_x, max_y, square_grid=False):
 
         if square_grid:
             square_dimension = max(max_x, max_y)+1
@@ -396,7 +397,7 @@ class RobomasterNode(Node):
     # takes the cummulative grid and transforms it into an binary representation.
     # "x" if the point is a wall, "." if the point has been visited and is walkable. 0 otherwise.
     # Lastly, we cap the cumulative probability for both states according to observations
-    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=1, cap_visited=-2, print_cumulative = False, print_binary = True):
+    def pop_binary_grid(self, acc_grid, x0, y0, cap_wall=1, cap_visited=-2, print_cumulative=False, print_binary=True):
 
         # Print cumulative grid to console
         if print_cumulative:
@@ -404,7 +405,7 @@ class RobomasterNode(Node):
 
         binary_grid = np.where(acc_grid >= cap_wall, 'x',
                                (np.where(acc_grid <= cap_visited, '.', '0')))
-        
+
         binary_grid[y0, x0] = 'ﾂ'  # This is us
 
         binary_grid = np.flip(binary_grid, axis=0)
@@ -412,64 +413,44 @@ class RobomasterNode(Node):
         # Print binary grid to console
         if print_binary:
             print(np.array2string(binary_grid, separator=' ',
-                formatter={'str_kind': lambda x: x}))
+                                  formatter={'str_kind': lambda x: x}))
 
         return binary_grid
-    
+
     # Plots the points on the map
-    def map_plot(self, points, ax, marker, color, fig):
-        import matplotlib.animation as animation
-        from itertools import count
+    def map_plot(self, points, ax, marker, color):
         points = np.array(points)
-        
         x = points[:, 0]
         y = points[:, 1]
         ax.scatter(x, y, marker=marker, color=color)
-        
-        xx = []
-        yy = []
-        numbers = np.arange(len(x))
-        my_iterator = iter(numbers)
-        idx = None
-        def animate(i): 
-            ax.clear()
-            idx = next(my_iterator)
-            ax.scatter(x, y, marker=marker, color=color)
-            xx.append(x[idx])
-            yy.append(y[idx])
-            # frame = drawf_2(points[idx])
-
-        if idx != len(x):
-            ani = animation.FuncAnimation(fig, animate, interval=200)       
         ax.set_aspect('equal')
-        
-        
 
     # Computes all the steps for mapping
     def compute_all(self):
 
         visited_points, wall_points = self.pop_visited_wall_p()
         x0, y0, _ = self.initial_pose
-        
-        # Grid for 3 sub-plots 
-        gs = gridspec.GridSpec(2,2)
+
+        # Grid for 3 sub-plots
+        gs = gridspec.GridSpec(2, 2)
         figure = plt.figure(figsize=(10, 10))
-        
+
         # axises for uppwer left and upper right
         ax1 = figure.add_subplot(gs[0, 0])
         ax2 = figure.add_subplot(gs[0, 1])
-        
-        # Mapping of our current position (robots position) 
+
+        # Mapping of our current position (robots position)
         ax1.scatter(x0, y0, marker='D')
         ax2.scatter(x0, y0, marker='D')
-        
-        # Plot of the current map      
-        self.map_plot(visited_points, ax1, marker='.', color="silver", fig=figure)
-        self.map_plot(wall_points, ax1, marker='+', color="lightcoral", fig=figure)
-        
-        # Plot of the combined map     
-        self.map_plot(self.global_visited_points, ax2, marker='.', color="gray", fig=figure)
-        self.map_plot(self.global_wall_points, ax2, marker='+', color="red", fig=figure)
+
+        # Plot of the current map
+        self.map_plot(visited_points, ax1, marker='.', color="silver")
+        self.map_plot(wall_points, ax1, marker='+', color="lightcoral")
+
+        # Plot of the combined map
+        self.map_plot(self.global_visited_points,
+                      ax2, marker='.', color="gray")
+        self.map_plot(self.global_wall_points, ax2, marker='+', color="red")
 
         # Offset points (put them in a square box)
         x_delta = self.max_x - self.min_x
@@ -484,7 +465,7 @@ class RobomasterNode(Node):
         # Compute offset for wall points and visited points
         wall_offset, max_x_index_w, max_y_index_w = self.comp_offset(
             min_x, min_y, self.global_wall_points, scale)
-        
+
         visited_offset, max_x_index_v, max_y_index_v = self.comp_offset(
             min_x, min_y, self.global_visited_points, scale)
 
@@ -493,17 +474,18 @@ class RobomasterNode(Node):
         y0_d = int(round((y0 + min_y)/scale, 0))
 
         # Max index observed for grid creation
-        max_x_index = max(max_x_index_v,max_x_index_w)
-        max_y_index = max(max_y_index_v,max_y_index_w)
+        max_x_index = max(max_x_index_v, max_x_index_w)
+        max_y_index = max(max_y_index_v, max_y_index_w)
 
         # Get cumulative grid with votes
-        grid = self.pop_grid(wall_offset, visited_offset, max_x_index, max_y_index, square_grid=True)
-        
+        grid = self.pop_grid(wall_offset, visited_offset,
+                             max_x_index, max_y_index, square_grid=True)
+
         # inner function for normalization
         def normalize_value(x):
             norm = x.copy().astype(float)
-            norm[x<0] /= - (x[x<0].min())
-            norm[x>0] /= x[x>0].max()
+            norm[x < 0] /= - (x[x < 0].min())
+            norm[x > 0] /= x[x > 0].max()
             return norm
 
         normalized_data = normalize_value(grid)
@@ -518,7 +500,7 @@ class RobomasterNode(Node):
 
         # Get closes unobservable point
         result = self.select_route(binary_grid)
-        
+
         ax1.set_title("Current map " + str(self.current_map))
         ax2.set_title("Combined map " + str(self.current_map))
         ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
@@ -527,30 +509,30 @@ class RobomasterNode(Node):
         plt.ion()
         plt.show()
         plt.pause(interval=2)
-        
+
         # If it is a tuple, meaning we have a valid route, we can proceed
         if type(result) is not type("String"):
             _, _, walkable, vertical_delta, horizontal_delta = result
-        
+
         # Else we mapped everything from our current position and return to the previous for further scanning
         else:
             if len(self.translations) != 0:
                 self.resetting = True
                 tx, ty, approach = self.translations.pop()
-                
+
                 # Inversion due to discretization
                 dfx = -tx
                 dfy = -ty
                 self.target_approach = "LT" if approach == "UT" else "UT"
-                self.delt_target_pose = (dfx , dfy, 0)
+                self.delt_target_pose = (dfx, dfy, 0)
                 self.state = "target_def"
-                return 
-
-            else:
-                self.state = "stop"            
                 return
 
-        case1 = walkable[0] # Move vertically first then horizontally
+            else:
+                self.state = "stop"
+                return
+
+        case1 = walkable[0]  # Move vertically first then horizontally
 
         # Determine if we have to move in upper or lower triangle
         if case1:
@@ -559,33 +541,34 @@ class RobomasterNode(Node):
             self.target_approach = "LT"
 
         # Inverted
-        dfx = horizontal_delta * scale 
+        dfx = horizontal_delta * scale
         dfy = -vertical_delta * scale
 
-        self.translations.append([dfx,dfy,self.target_approach])
+        self.translations.append([dfx, dfy, self.target_approach])
 
         # Delta from our current position to the target position
-        self.delt_target_pose = (dfx , dfy, 0)
+        self.delt_target_pose = (dfx, dfy, 0)
 
         self.state = "target_def"
-        
+
     # Determines the next route to take based on the binary grid
     def select_route(self, binary):
         position = get_current_pos(binary)
         keep_looping = True
         plausible_pos = unseen_neighbors(binary)
-        
+
         # If no plausible candidates are left, we have mapped everything
         if len(plausible_pos) == 0:
             print("WE HAVE MAPPED EVERYTHING")
-            print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
+            print(np.array2string(binary, separator=' ',
+                  formatter={'str_kind': lambda x: x}))
             self.state = "stop"
             return "Mapped_All"
-        
+
         # Check for nearest candidate
         else:
             while keep_looping:
-                
+
                 nearest = min_dist(plausible_pos, position)
                 nearest_known = get_known(nearest, binary)
                 walkable = check_path(position, nearest_known, binary)
@@ -595,16 +578,17 @@ class RobomasterNode(Node):
                     plausible_pos.remove(nearest)
                     if len(plausible_pos) == 0:
                         print("WE HAVE MAPPED EVERYTHING")
-                        print(np.array2string(binary, separator=' ', formatter={'str_kind': lambda x: x}))
+                        print(np.array2string(binary, separator=' ',
+                              formatter={'str_kind': lambda x: x}))
                         return "Mapped_All"
-                else: 
+                else:
                     print("STOP LOOPING: CANDIDATE FOUND")
                     keep_looping = False
 
             binary[nearest_known] = '◎'
             print(np.array2string(binary, separator=' ',
-                    formatter={'str_kind': lambda x: x}))
-            
+                                  formatter={'str_kind': lambda x: x}))
+
             dx = nearest_known[0]-position[0]
             dy = nearest_known[1]-position[1]
 
@@ -612,7 +596,8 @@ class RobomasterNode(Node):
             print("array coordinates")
             print("OUR POSITION ﾂ:", position)
             print("NEAREST POSITION ◎:", nearest_known)
-            print("WALKABLE | UT:", walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
+            print("WALKABLE | UT:",
+                  walkable[0], " | LT:", walkable[1], " | Diag:", walkable[-1])
             print("VERTICAL TRASLATION (rounded up):", dx)
             print("HORIZONTAL TRASLATION (rounded up):", dy)
             return nearest_known, position, walkable, dx, dy
@@ -629,6 +614,8 @@ def unseen_neighbors(binary):
     return plausible_pos
 
 # Retrieves the element with min distance amongst all plausible candidates
+
+
 def min_dist(plausible_cand, current_pos):
     sx, sy = current_pos
     nearest = None
@@ -641,9 +628,11 @@ def min_dist(plausible_cand, current_pos):
             dist = temp_dist
             nearest = cand
 
-    return nearest 
+    return nearest
 
 # Checks whether a position is a candidate
+
+
 def candidate(binary, elem):
 
     max_x = len(binary)
@@ -658,14 +647,14 @@ def candidate(binary, elem):
     elems = []
     # Border element
     if min_x < x < max_x - 1 and min_y < y < max_y - 1:
-        elems.append((x+1,y))
-        elems.append((x-1,y))
-        elems.append((x,y+1))
-        elems.append((x,y-1))
-        elems.append((x+1,y+1))
-        elems.append((x-1,y-1))
-        elems.append((x+1,y-1))
-        elems.append((x-1,y+1))
+        elems.append((x+1, y))
+        elems.append((x-1, y))
+        elems.append((x, y+1))
+        elems.append((x, y-1))
+        elems.append((x+1, y+1))
+        elems.append((x-1, y-1))
+        elems.append((x+1, y-1))
+        elems.append((x-1, y+1))
 
     if len(elems) == 0:
         return False
@@ -725,30 +714,37 @@ def check_path(current_pos, target_pos, binary):
             if binary[sx, sy] == "x":
                 LT = False
 
-    return UT, LT 
+    return UT, LT
 
 # Retrieves from the array the position we currenly have
+
+
 def get_current_pos(binary):
-    px,py = np.where(binary == 'ﾂ')
-    position = (px[0],py[0]) # array[int] -> int
+    px, py = np.where(binary == 'ﾂ')
+    position = (px[0], py[0])  # array[int] -> int
     return position
 
 # Get closest point that is known to unknown point
+
+
 def get_known(point, binary):
     x, y = point
-    neighbours =  [(x+1,y), (x-1,y), (x,y+1), (x,y-1), (x+1,y+1), (x-1,y-1), (x+1,y-1), (x-1,y+1)]
+    neighbours = [(x+1, y), (x-1, y), (x, y+1), (x, y-1),
+                  (x+1, y+1), (x-1, y-1), (x+1, y-1), (x-1, y+1)]
     for elem in neighbours:
         if binary[elem[0], elem[1]] == '.':
             return elem
 
 # Main execution
+
+
 def main():
     np.set_printoptions(linewidth=150, legacy="1.13")
     rclpy.init(args=sys.argv)
     node = RobomasterNode()
 
     node.start()
-    
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
