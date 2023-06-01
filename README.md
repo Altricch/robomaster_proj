@@ -2,7 +2,7 @@
 ##### Group Z: Altrichter Christian, Jury Andrea D'Onofrio and Francesco Huber
 GitHub repository: [Click here](https://github.com/Altricch/robomaster_proj.git)
 
-Video Repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
+Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
 
 ## To run the environments
 Firstly we need to open 4 new terminals.
@@ -55,5 +55,5 @@ We have tested with the following scenes:
 ## Notes
  - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
  - Please pay attention to the path where you save the figure. We encourage to adjust the pathname as you prefer. We can find the raw clicking by the following link:
-    - [First figure](https://github.com/Altricch/robomaster_proj/blob/260f63bf17223e9e039c42d001590358c26cb3bd/robomaster_proj/robomapper_node_unified.py#L228-L229)
-    - [Second figure](https://github.com/Altricch/robomaster_proj/blob/260f63bf17223e9e039c42d001590358c26cb3bd/robomaster_proj/robomapper_node_unified.py#L508-L509)
+    - [First figure]()
+    - [Second figure]()
