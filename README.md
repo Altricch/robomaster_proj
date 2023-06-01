@@ -32,10 +32,11 @@ In T4 run the following commands the launch the xml file:
 You can source T3 and T4 just once. 
 
 ## Scene Selection
-In order to test the robot we suggest the following scenes:
+We have tested with the following scenes:
 - Base_Scene.ttt (Basic square room with angular wall section in top left corner)
 - Base_Scene2.ttt (Same as previous but changed starting position)
 - Base_Scene_Plant.ttt (Same as original stress test but with obstacles)
+- Scene_different_rotation.ttt (Start with a differnt starting rotation and wall configuration)
 - Stress_Test.ttt (Version of previous scene with unreachable bottom left corner)
 - Stress_Test2.ttt (Square room with big diagonal section)
 - Stress_Test3.ttt (Large Rectangular Room with some abstacles)
