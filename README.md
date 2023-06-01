@@ -1,4 +1,6 @@
-# robotics_project
+# Robotics Final Project 
+##### Group Z: Altrichter Christian, Jury D'Onofrio and Francesco Huber
+GitHub repository: https://github.com/Altricch/robomaster_proj.git
 
 ## To run the environments
 Firstly we need to open 4 new terminals.
@@ -17,14 +19,7 @@ In T3 run the following commands to bridge:
 
 `cd /dev_ws/src`
 
-`ros2 launch robomaster_ros s1.launch name:="name" serial_number:="name"`
-
-You can get the name of the robomaster inside Coppelia by double-clicking as shown in the first image and copy the third parameter of the function `simRobomaster.create_s1()` as the second figure shows.
-
-<img width="516" alt="Screenshot 2023-05-12 at 10 45 06" src="https://github.com/JuryAndrea/robotics_project/assets/43291397/1e1b5508-145b-4bea-a5f1-bad3b0a6e683">
-
-
-<img width="596" alt="Screenshot 2023-05-12 at 10 46 15" src="https://github.com/JuryAndrea/robotics_project/assets/43291397/61b20321-2949-4c10-9a7c-e068711b397b">
+`ros2 launch robomaster_ros s1.launch name:=RM0001 tof_0:=true tof_1:=true tof_2:=true tof_3:=true`
 
 In T4 run the following commands the launch the xml file:
 
@@ -32,14 +27,21 @@ In T4 run the following commands the launch the xml file:
 
 `source ~/dev_ws/install/setup.bash`
 
-`ros2 run robomaster_proj robomaster_node`
-
-Optionally, we can open a new terminal T5 in order to show the topic list of the robomaster. To do that:
-
-`cd /dev_ws/src`
-
-`ros2 topic list`
-
-Note that you have to bridge and start the simulation before you can show the topic list.
+`ros2 run robomaster_proj robomapper_node2`
 
 You can source T3 and T4 just once. 
+
+## Scene Selection
+In order to test the robot we suggest the following scenes:
+- Old_Scene.ttt (Basic square room with angular wall section in top left corner)
+- Mapped_scene.ttt (Same as Old_scene but changed starting position)
+- Mapped_scene_with_plants.ttt (Same as original stress test but with obstacles)
+- Stress_Test.ttt (Version of Old_Scene with unreachable bottom left corner)
+- Stress_Test2.ttt (Large Rectangular Room with some abstacles)
+- Stress_Test3.ttt (Square room with big diagonal section)
+- Stress_Test2.ttt (Same as stress test 2 with changed starting position)
+- Stress_Test5.ttt (Large Room with irregular walls)
+- Stress_Test6.ttt (Same as stress test 5 with changed starting position)
+
+
+
