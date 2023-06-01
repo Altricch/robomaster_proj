@@ -5,7 +5,8 @@ GitHub repository: [Click here](https://github.com/Altricch/robomaster_proj.git)
 Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
 
 ## To run the environments
-Firstly we need to open 4 new terminals.
+
+Firstly, you need to clone the repository in `cd dev_ws/src`. Then, you need to open 4 new terminals.
 
 In T1 run the following command to open CoppeliaSim:
 
@@ -13,15 +14,13 @@ In T1 run the following command to open CoppeliaSim:
 
 In T2 run the following commands to build the project:
 
-1. `cd /dev_ws`
+1. `cd dev_ws/`
 
-2. `source ~/dev_ws/install/setup.bash`
-
-3. `colcon build`
+2. `colcon build`
 
 In T3 run the following commands to bridge:
 
-1. `cd /dev_ws/src`
+1. `cd dev_ws/src`
 
 2. `source ~/dev_ws/install/setup.bash`
 
@@ -29,7 +28,7 @@ In T3 run the following commands to bridge:
 
 In T4 execute the following commands to run the node:
 
-1. `cd /dev_ws/src`
+1. `cd dev_ws/src`
 
 2. `source ~/dev_ws/install/setup.bash`
 
