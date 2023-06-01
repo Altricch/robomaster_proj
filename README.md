@@ -14,7 +14,7 @@ In T1 run the following command to open CoppeliaSim:
 
 Once CoppeliaSim has started, kindly open one of the respective scences.
 
-#### Notes
+#### ⚠️ Notes ⚠️
  - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
  - Please pay attention to the objects you add, they should be set as collidable and detectable.
 
@@ -41,6 +41,9 @@ In T4 execute the following commands to run the node:
 3. `ros2 run robomaster_proj robomapper_node2`
 
 You can source T3 and T4 just once. 
+
+#### ⚠️ Be Careful⚠️
+You can find your results in the folder called `plot` in `cd dev_ws/src/robomaster_proj/robomaster_proj/plot`
 
 ## Scene Selection
 We have tested with the following scenes:
