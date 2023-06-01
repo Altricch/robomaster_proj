@@ -43,7 +43,7 @@ We have tested with the following scenes:
 - Base_Scene2.ttt ⟶ Same as previous but changed starting position
 - Base_Scene_Plant.ttt ⟶ Same as the first scene but with obstacles
 <br/><br/>
-- Scene_different_rotation.ttt ⟶ Start with a differnt starting rotation and walls configuration
+- Scene_different_rotation.ttt ⟶ Start with a different starting rotation and walls configuration
 - Stress_Test.ttt ⟶ Version of previous scene with unreachable bottom left corner
 <br/><br/>
 - Stress_Test2.ttt ⟶ Square room with big diagonal section
