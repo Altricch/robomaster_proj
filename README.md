@@ -5,7 +5,9 @@ GitHub repository: [Click here](https://github.com/Altricch/robomaster_proj.git)
 Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=BJTnAg)
 
 ## Remark
-We suggest to use a M1 Pro or equivalent processor to run our simulation as we have experienced errors with regards to the sensor reading updates. This could subsequently lead to a faulty execution (e.g. robot does not stop spinning / scanning the perimeter). 
+ - We suggest to use a M1 Pro or equivalent processor to run our simulation as we have experienced errors with regards to the sensor reading updates. This could subsequently lead to a faulty execution (e.g. robot does not stop spinning / scanning the perimeter). 
+<br/><br/>
+ - To `launch` our code, we use the provided `robomaster_ros s1.launch` in the `cd dev_ws/src/robomaster_ros/robomaster_ros/launch`
 
 ## To run the environments
 
@@ -15,7 +17,7 @@ In T1 run the following command to open CoppeliaSim:
 
 ` ~/apps/CoppeliaSim_Edu_V4_4_0_rev0_Ubuntu20_04/coppeliaSim.sh`
 
-Once CoppeliaSim has started, kindly open one of the respective scences.
+Once CoppeliaSim has started, kindly open one of the respective scences and set the realtime flag.
 
 #### ⚠️ Notes ⚠️
  - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
