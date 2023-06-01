@@ -91,9 +91,9 @@ class RobomasterNode(Node):
     def start(self):
         self.timer = self.create_timer(1/100, self.timer_callback)
 
-    def stop(self):
-        cmd_vel = Twist()
-        self.vel_publisher.publish(cmd_vel)
+    # def stop(self):
+    #     cmd_vel = Twist()
+    #     self.vel_publisher.publish(cmd_vel)
 
     def odom_callback(self, msg):
         self.odom_pose = msg.pose.pose
@@ -532,6 +532,10 @@ class RobomasterNode(Node):
 
             else:
                 self.state = "stop"
+
+                print("Node Shutdown")
+                rclpy.shutdown()
+                
                 return
 
         case1 = walkable[0]  # Move vertically first then horizontally
