@@ -1,16 +1,16 @@
 import rclpy
 from rclpy.node import Node
 import tf_transformations
+<<<<<<< HEAD
 from std_msgs.msg import String
-
-import numpy as np
-
 from geometry_msgs.msg import Twist, Pose
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Range
 
 import matplotlib.pyplot as plt
-
+import matplotlib as mpl
+from matplotlib.colors import TwoSlopeNorm
+import numpy as np
 import sys
 import math
 
@@ -24,6 +24,12 @@ import random
 # - stress test with various rooms
 # - embellish map maybe with 3d stuff
 
+=======
+import matplotlib.gridspec as gridspec
+import numpy as np
+import sys
+import math
+>>>>>>> any_map
 
 
 class RobomasterNode(Node):
@@ -269,6 +275,7 @@ class RobomasterNode(Node):
             dir_x = np.sign(self.delt_target_pose[0])
             dir_y = np.sign(self.delt_target_pose[1])
 
+<<<<<<< HEAD
             if self.counter % 100 == 0:
                 self.get_logger().info(
                     'Sx:' + str(sx) + ' | Sy:' + str(sy) + ' Fx ' + str(self.target_pos[0]) + "FY" + str(
@@ -278,7 +285,7 @@ class RobomasterNode(Node):
 
             if self.target_approach == "UT":
             ### THIS IS FOR UPPER TRIANGULAR
-                if abs(self.target_pos[1] - sy) > 0.01 and self.ytrav:
+                if abs(self.target_pos[1] - sy) > 0.02 and self.ytrav:
                     self.state_dict["target"] = [0.0, dir_y, 0.0]
                 elif abs(self.target_pos[0] - sx) > 0.02 and self.xtrav:
                     self.ytrav = False
@@ -286,8 +293,6 @@ class RobomasterNode(Node):
                 else:
                     self.xtrav = False
                     self.state = "scanning"
-                    self.resetting = False
-
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
@@ -306,16 +311,10 @@ class RobomasterNode(Node):
                 else:
                     self.ytrav = False
                     self.state = "scanning"
-                    self.resetting = False
-
                     self.points = []
                     self.initial_pose = None
                     self.counter = 0
 
-                    plt.ioff()
-                    plt.close('all')
-
-        # We always publish the velocities according to the state
         cmd_vel.linear.x, cmd_vel.linear.y, cmd_vel.angular.z = np.array(
             self.state_dict[self.state])/self.speed_damper
 
@@ -501,27 +500,36 @@ class RobomasterNode(Node):
         max_y_index = max(max_y_index_v, max_y_index_w)
 
         # Get cumulative grid with votes
-        grid = self.pop_grid(wall_offset, visited_offset,
-                             max_x_index, max_y_index, square_grid=True)
+        grid = self.pop_grid(wall_offset, visited_offset)
 
-        # inner function for normalization
-        def normalize_value(x):
-            norm = x.copy().astype(float)
-            norm[x < 0] /= - (x[x < 0].min())
-            norm[x > 0] /= x[x > 0].max()
-            return norm
-
-        normalized_data = normalize_value(grid)
-
+<<<<<<< HEAD
         # Flip the grid and print cummulative grid
         corrected_grid = np.flip(grid, axis=0)
         print(corrected_grid)
+        
+        
+        # HEATMAP PLOT
+        fig, ax_pcolormesh = plt.subplots()
+        
+        vmin = np.amin(corrected_grid)
+        vmax = np.amax(corrected_grid)
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+        
+        c = ax_pcolormesh.pcolormesh(corrected_grid, cmap='RdBu_r', norm=norm)
+        fig.colorbar(c, ax=ax_pcolormesh)
+        ax_pcolormesh.set_ylim(ax_pcolormesh.get_ylim()[::-1])        # invert the axis
+        ax_pcolormesh.xaxis.tick_top()  # and move the X-Axis  
 
+        
         # Get binary grid and print
         binary_grid = self.pop_binary_grid(grid, x0_d, y0_d)
 
         # Get closes unobservable point
         result = self.select_route(binary_grid)
+
+        # check how many points are identified as wall
+        coords = np.argwhere(binary_grid == 'x')
+        print("wall coords amount:", len(coords))
 
         ### GETTING CLOSEST ####
         print(binary_grid.shape)
@@ -549,6 +557,22 @@ class RobomasterNode(Node):
             self.target_approach = "UT"
         else:
             self.target_approach = "LT"
+
+        # self.state = 'move'
+        ax1.set_title("Current map " + str(self.current_map))
+        ax2.set_title("Combined map " + str(self.current_map))
+        self.current_map += 1
+        plt.ion()
+        plt.show(block = False)
+        plt.pause(interval = 2)
+
+        print("now after block")
+        self.state = 'move'
+
+        print("inversion of x and y")
+        print("Start X ", sx , " Start Y ", sy)
+        print("Target X ", fx , " Target Y ", fy)
+        print("SCALE FACTOR", scale)
 
         # Inverted
         dfx = horizontal_delta * scale
@@ -734,6 +758,12 @@ def get_current_pos(binary):
     position = (px[0], py[0])  # array[int] -> int
     return position
 
+def get_known(point, binary):
+    x, y = point
+    neighbours =  [(x+1,y), (x-1,y), (x,y+1), (x,y-1), (x+1,y+1), (x-1,y-1), (x+1,y-1), (x-1,y+1)]
+    for elem in neighbours:
+        if binary[elem[0], elem[1]] == '.':
+            return elem
 
 def select_route(binary):
     position = get_current_pos(binary)
@@ -783,6 +813,20 @@ def select_route(binary):
         return nearest, position, walkable, dx, dy
     
     return "Mapped_All"
+=======
+# Get closest point that is known to unknown point
+
+
+def get_known(point, binary):
+    x, y = point
+    neighbours = [(x+1, y), (x-1, y), (x, y+1), (x, y-1),
+                  (x+1, y+1), (x-1, y-1), (x+1, y-1), (x-1, y+1)]
+    for elem in neighbours:
+        if binary[elem[0], elem[1]] == '.':
+            return elem
+
+# Main execution
+>>>>>>> any_map
 
 
 def main():
