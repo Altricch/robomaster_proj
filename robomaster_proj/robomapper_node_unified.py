@@ -91,9 +91,9 @@ class RobomasterNode(Node):
     def start(self):
         self.timer = self.create_timer(1/100, self.timer_callback)
 
-    def stop(self):
-        cmd_vel = Twist()
-        self.vel_publisher.publish(cmd_vel)
+    # def stop(self):
+    #     cmd_vel = Twist()
+    #     self.vel_publisher.publish(cmd_vel)
 
     def odom_callback(self, msg):
         self.odom_pose = msg.pose.pose
@@ -149,6 +149,7 @@ class RobomasterNode(Node):
             if abs(angle - self.previous_angle) > 180 and self.counter > 500:  # 5 seconds minimum
                 print("COMPLETED 360 ROTATION")
                 self.state = "correcting"
+                self.counter = 0
 
             # For (real time) mapping
             elif self.counter % 2 == 0 and self.range_f > 0:
@@ -164,18 +165,17 @@ class RobomasterNode(Node):
         # Performs correcting operating of pose to move into perfect horizontal (or vertical) position
         # as we slighlty drift during 360 rotation
         if self.state == "correcting":
-            if np.isclose(self.current_pose[-1], 0.0, atol=0.006):
+            if np.isclose(self.current_pose[-1], 0.0, atol=0.006) and self.counter > 50:
                 plt.ioff()
                 plt.close('all')
                 self.spins += 1
                 self.state = "done"
                 self.realtime = False
                 cmd_vel.angular.z = 0.0
-
-            elif self.current_pose[-1] > 0.015:
-                cmd_vel.angular.z = -0.05
-            elif self.current_pose[-1] < -0.015:
-                cmd_vel.angular.z = 0.05
+            elif self.current_pose[-1] > 0.0:
+                cmd_vel.angular.z = -0.01
+            elif self.current_pose[-1] < 0.0:
+                cmd_vel.angular.z = 0.01
 
         self.vel_publisher.publish(cmd_vel)
 
@@ -226,7 +226,7 @@ class RobomasterNode(Node):
         if self.state == 'done':
             if len(self.points) >= 2:
                 self.fig_continue.savefig(
-                    'robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
+                    'src/robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
 
@@ -506,7 +506,7 @@ class RobomasterNode(Node):
         ax2.set_title("Combined map " + str(self.current_map))
         ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
         figure.savefig(
-            'robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
+            'src/robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
         self.current_map += 1
         plt.ion()
         plt.show()
@@ -532,6 +532,10 @@ class RobomasterNode(Node):
 
             else:
                 self.state = "stop"
+
+                print("Node Shutdown")
+                rclpy.shutdown()
+                
                 return
 
         case1 = walkable[0]  # Move vertically first then horizontally
