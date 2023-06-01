@@ -7,7 +7,7 @@ Enjoy our video repository: [Click here](https://usi365-my.sharepoint.com/:f:/g/
 ## Remark
 We suggest to use a M1 Pro or equivalent processor to run our simulation as we have experienced errors with regards to the sensor reading updates. This could subsequently lead to a faulty execution (e.g. robot does not stop spinning / scanning the perimeter). 
 <br/><br/>
-To `launch` our code, we use the provided `robomaster_ros s1.launch` in the `cd dev_ws/src/robomaster_ros/robomaster_ros/launch`
+To `launch` our code, we use the provided `robomaster_ros s1.launch` in `cd dev_ws/src/robomaster_ros/robomaster_ros/launch`
 
 ## To run the environments
 
