@@ -54,3 +54,4 @@ We have tested with the following scenes:
 
 ## Notes
  - Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
+ - Please pay attention to the objects you add, they should be set as collidable and detectable.
