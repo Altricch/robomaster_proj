@@ -223,7 +223,7 @@ class RobomasterNode(Node):
         # Calls function compute all which is responsible for the discretization and mapping for all outputs
         if self.state == 'done':
             if len(self.points) >= 2:
-                self.fig_continue.savefig('src/robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
+                self.fig_continue.savefig('robomaster_proj/robomaster_proj/plot/realtime_plot_'+str(self.current_map)+'.png')
                 plt.close(self.fig_continue)
                 self.global_line_visited = []
                 
@@ -417,12 +417,33 @@ class RobomasterNode(Node):
         return binary_grid
     
     # Plots the points on the map
-    def map_plot(self, points, ax, marker, color):
+    def map_plot(self, points, ax, marker, color, fig):
+        import matplotlib.animation as animation
+        from itertools import count
         points = np.array(points)
+        
         x = points[:, 0]
         y = points[:, 1]
         ax.scatter(x, y, marker=marker, color=color)
+        
+        xx = []
+        yy = []
+        numbers = np.arange(len(x))
+        my_iterator = iter(numbers)
+        idx = None
+        def animate(i): 
+            ax.clear()
+            idx = next(my_iterator)
+            ax.scatter(x, y, marker=marker, color=color)
+            xx.append(x[idx])
+            yy.append(y[idx])
+            # frame = drawf_2(points[idx])
+
+        if idx != len(x):
+            ani = animation.FuncAnimation(fig, animate, interval=200)       
         ax.set_aspect('equal')
+        
+        
 
     # Computes all the steps for mapping
     def compute_all(self):
@@ -443,12 +464,12 @@ class RobomasterNode(Node):
         ax2.scatter(x0, y0, marker='D')
         
         # Plot of the current map      
-        self.map_plot(visited_points, ax1, marker='.', color="silver")
-        self.map_plot(wall_points, ax1, marker='+', color="lightcoral")
+        self.map_plot(visited_points, ax1, marker='.', color="silver", fig=figure)
+        self.map_plot(wall_points, ax1, marker='+', color="lightcoral", fig=figure)
         
         # Plot of the combined map     
-        self.map_plot(self.global_visited_points, ax2, marker='.', color="gray")
-        self.map_plot(self.global_wall_points, ax2, marker='+', color="red")
+        self.map_plot(self.global_visited_points, ax2, marker='.', color="gray", fig=figure)
+        self.map_plot(self.global_wall_points, ax2, marker='+', color="red", fig=figure)
 
         # Offset points (put them in a square box)
         x_delta = self.max_x - self.min_x
@@ -501,7 +522,7 @@ class RobomasterNode(Node):
         ax1.set_title("Current map " + str(self.current_map))
         ax2.set_title("Combined map " + str(self.current_map))
         ax_pcolormesh.set_title("Heatmap " + str(self.current_map))
-        figure.savefig('src/robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
+        figure.savefig('robomaster_proj/robomaster_proj/plot/mapping_plot_'+str(self.current_map)+'.png')
         self.current_map += 1
         plt.ion()
         plt.show()
