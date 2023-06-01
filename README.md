@@ -27,7 +27,7 @@ In T3 run the following commands to bridge:
 
 3. `ros2 launch robomaster_ros s1.launch name:=RM0001 tof_0:=true`
 
-In T4 execute the following commands the run the node:
+In T4 execute the following commands to run the node:
 
 1. `cd /dev_ws/src`
 
