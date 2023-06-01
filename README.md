@@ -2,6 +2,8 @@
 ##### Group Z: Altrichter Christian, Jury D'Onofrio and Francesco Huber
 GitHub repository: https://github.com/Altricch/robomaster_proj.git
 
+Video Repository: https://usi365-my.sharepoint.com/:f:/g/personal/donofj_usi_ch/EhkavI2BI3RIgTlFAT8el0EBNBjVjIQa2q_OUt_9QJctLQ?e=nc3SXZ
+
 ## To run the environments
 Firstly we need to open 4 new terminals.
 
@@ -18,6 +20,8 @@ In T2 run the following commands to build the project:
 In T3 run the following commands to bridge:
 
 `cd /dev_ws/src`
+
+`source ~/dev_ws/install/setup.bash`
 
 `ros2 launch robomaster_ros s1.launch name:=RM0001 tof_0:=true tof_1:=true tof_2:=true tof_3:=true`
 
@@ -43,6 +47,9 @@ We have tested with the following scenes:
 - Stress_Test4.ttt (Same as stress test 2 with changed starting position)
 - Stress_Test5.ttt (Large Room with irregular walls)
 - Stress_Test6.ttt (Same as stress test 5 with changed starting position)
+
+## Notes
+Please pay attention to the dynamic dt in the simulation setting of Coppelia, it should be set at 0,0045.
 
 
 
